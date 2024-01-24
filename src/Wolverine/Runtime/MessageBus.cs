@@ -19,13 +19,16 @@ public class MessageBus : IMessageBus
 
     public MessageBus(IWolverineRuntime runtime, string? correlationId)
     {
-        Runtime?.AssertHasStarted();
+        if (runtime == null)
+        {
+            throw new ArgumentNullException(nameof(runtime));
+        }
 
         Runtime = runtime;
         Storage = runtime.Storage;
         CorrelationId = correlationId;
     }
-
+    
     public string? CorrelationId { get; set; }
 
     public IWolverineRuntime Runtime { get; }
@@ -72,6 +75,8 @@ public class MessageBus : IMessageBus
         {
             throw new ArgumentNullException(nameof(message));
         }
+        
+        Runtime.AssertHasStarted();
 
         return Runtime.FindInvoker(message.GetType()).InvokeAsync(message, this, cancellation, timeout);
     }
@@ -83,6 +88,8 @@ public class MessageBus : IMessageBus
         {
             throw new ArgumentNullException(nameof(message));
         }
+        
+        Runtime.AssertHasStarted();
 
         return Runtime.FindInvoker(message.GetType()).InvokeAsync<T>(message, this, cancellation, timeout);
     }
@@ -94,6 +101,8 @@ public class MessageBus : IMessageBus
         {
             throw new ArgumentNullException(nameof(message));
         }
+        
+        Runtime.AssertHasStarted();
 
         return Runtime.FindInvoker(message.GetType()).InvokeAsync(message, this, cancellation, timeout, tenantId);
     }
@@ -105,6 +114,8 @@ public class MessageBus : IMessageBus
         {
             throw new ArgumentNullException(nameof(message));
         }
+        
+        Runtime.AssertHasStarted();
 
         return Runtime.FindInvoker(message.GetType()).InvokeAsync<T>(message, this, cancellation, timeout, tenantId);
     }
@@ -120,6 +131,8 @@ public class MessageBus : IMessageBus
         {
             throw new ArgumentNullException(nameof(message));
         }
+        
+        Runtime.AssertHasStarted();
 
         // Cannot trust the T here. Can be "object"
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteForSend(message, options);
@@ -134,6 +147,8 @@ public class MessageBus : IMessageBus
         {
             throw new ArgumentNullException(nameof(message));
         }
+        
+        Runtime.AssertHasStarted();
 
         // You can't trust the T here.
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteForPublish(message, options);
@@ -155,6 +170,8 @@ public class MessageBus : IMessageBus
         {
             throw new ArgumentNullException(nameof(message));
         }
+        
+        Runtime.AssertHasStarted();
 
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteToTopic(message, topicName, options);
         return PersistOrSendAsync(outgoing);

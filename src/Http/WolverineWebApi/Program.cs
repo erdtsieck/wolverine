@@ -12,6 +12,7 @@ using Wolverine.EntityFrameworkCore;
 using Wolverine.FluentValidation;
 using Wolverine.Http;
 using Wolverine.Http.FluentValidation;
+using Wolverine.Http.Marten;
 using Wolverine.Http.Tests.DifferentAssembly.Validation;
 using Wolverine.Marten;
 using WolverineWebApi;
@@ -28,7 +29,15 @@ builder.Services.AddLogging();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+
+#region sample_register_custom_swashbuckle_filter
+
+builder.Services.AddSwaggerGen(x =>
+{
+    x.OperationFilter<WolverineOperationFilter>();
+});
+
+#endregion
 
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<Broadcaster>();
@@ -91,6 +100,10 @@ app.UseSwaggerUI();
 
 app.UseAuthorization();
 
+// These routes are for doing
+OpenApiEndpoints.BuildComparisonRoutes(app);
+
+
 app.MapGet("/orders/{orderId}", [Authorize] Results<BadRequest, Ok<Order>>(int orderId)
     => orderId > 999 ? TypedResults.BadRequest() : TypedResults.Ok(new Order(orderId)));
 
@@ -114,7 +127,6 @@ app.MapWolverineEndpoints(opts =>
 
         // This adds metadata for OpenAPI
         httpChain.WithMetadata(new CustomMetadata());
-        httpChain.WithTags("wolverine");
     });
     
     // more configuration for HTTP...
@@ -128,17 +140,25 @@ app.MapWolverineEndpoints(opts =>
     // Only want this middleware on endpoints on this one handler
     opts.AddMiddleware(typeof(BeforeAndAfterMiddleware),
         chain => chain.Method.HandlerType == typeof(MiddlewareEndpoints));
+    
+#region sample_user_marten_compiled_query_policy
+    opts.UseMartenCompiledQueryResultPolicy();
+#endregion
 
 #region sample_register_http_middleware_by_type
     opts.AddMiddlewareByMessageType(typeof(FakeAuthenticationMiddleware));
     opts.AddMiddlewareByMessageType(typeof(CanShipOrderMiddleWare));
 #endregion
 
+#region sample_register_resource_writer_policy
+    opts.AddResourceWriterPolicy<CustomResourceWriterPolicy>();
+#endregion
+
     // Publish messages coming from 
-    opts.PublishMessage<HttpMessage1>(HttpMethod.Post, "/publish/message1");
-    opts.PublishMessage<HttpMessage2>("/publish/message2");
-    opts.SendMessage<HttpMessage5>(HttpMethod.Post, "/send/message5");
-    opts.SendMessage<HttpMessage6>("/send/message6");
+    opts.PublishMessage<HttpMessage1>(HttpMethod.Post, "/publish/message1").WithTags("messages");
+    opts.PublishMessage<HttpMessage2>("/publish/message2").WithTags("messages");
+    opts.SendMessage<HttpMessage5>(HttpMethod.Post, "/send/message5").WithTags("messages");
+    opts.SendMessage<HttpMessage6>("/send/message6").WithTags("messages");
     
     opts.AddPolicy<StreamCollisionExceptionPolicy>();
 

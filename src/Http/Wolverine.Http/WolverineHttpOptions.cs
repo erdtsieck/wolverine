@@ -7,6 +7,7 @@ using Newtonsoft.Json;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Policies;
+using Wolverine.Http.Resources;
 using Wolverine.Http.Runtime;
 using Wolverine.Http.Runtime.MultiTenancy;
 using Wolverine.Middleware;
@@ -100,6 +101,8 @@ public class WolverineHttpOptions
 
     public List<IHttpPolicy> Policies { get; } = new();
 
+    public List<IResourceWriterPolicy> ResourceWriterPolicies { get; } = new();
+
     /// <summary>
     /// Configure built in tenant id detection strategies
     /// </summary>
@@ -156,6 +159,25 @@ public class WolverineHttpOptions
     {
         Policies.Add(new T());
     }
+    
+    
+    /// <summary>
+    ///     Add a new IResourceWriterPolicy for the Wolverine endpoints
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    public void AddResourceWriterPolicy<T>() where T : IResourceWriterPolicy, new()
+    {
+        ResourceWriterPolicies.Add(new T());
+    }
+    
+    /// <summary>
+    ///     Add a new IResourceWriterPolicy for the Wolverine endpoints
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    public void AddResourceWriterPolicy<T>(T policy) where T : IResourceWriterPolicy
+    {
+        ResourceWriterPolicies.Add(policy);
+    }
 
     /// <summary>
     ///     Apply user-defined customizations to how endpoints are handled
@@ -211,7 +233,7 @@ public class WolverineHttpOptions
     /// <param name="url"></param>
     /// <param name="customize">Optionally customize the HttpChain handling for elements like validation</param>
     /// <typeparam name="T"></typeparam>
-    public void PublishMessage<T>(HttpMethod httpMethod, string url, Action<HttpChain>? customize = null)
+    public RouteHandlerBuilder PublishMessage<T>(HttpMethod httpMethod, string url, Action<HttpChain>? customize = null)
     {
 #pragma warning disable CS4014
         var method = MethodCall.For<PublishingEndpoint<T>>(x => x.PublishAsync(default!, null!, null!));
@@ -220,12 +242,15 @@ public class WolverineHttpOptions
 
         chain.MapToRoute(httpMethod.ToString(), url);
         chain.DisplayName = $"Forward {typeof(T).FullNameInCode()} to Wolverine";
+        chain.OperationId = $"Publish:{typeof(T).FullNameInCode()}";
         customize?.Invoke(chain);
+
+        return chain.Metadata;
     }
 
-    public void PublishMessage<T>(string url, Action<HttpChain>? customize = null)
+    public RouteHandlerBuilder PublishMessage<T>(string url, Action<HttpChain>? customize = null)
     {
-        PublishMessage<T>(HttpMethod.Post, url, customize);
+        return PublishMessage<T>(HttpMethod.Post, url, customize);
     }
     
     /// <summary>
@@ -235,7 +260,7 @@ public class WolverineHttpOptions
     /// <param name="url"></param>
     /// <param name="customize">Optionally customize the HttpChain handling for elements like validation</param>
     /// <typeparam name="T"></typeparam>
-    public void SendMessage<T>(HttpMethod httpMethod, string url, Action<HttpChain>? customize = null)
+    public RouteHandlerBuilder SendMessage<T>(HttpMethod httpMethod, string url, Action<HttpChain>? customize = null)
     {
 #pragma warning disable CS4014
         var method = MethodCall.For<SendingEndpoint<T>>(x => x.SendAsync(default!, null!, null!));
@@ -244,12 +269,15 @@ public class WolverineHttpOptions
 
         chain.MapToRoute(httpMethod.ToString(), url);
         chain.DisplayName = $"Forward {typeof(T).FullNameInCode()} to Wolverine";
+        chain.OperationId = $"Send:{typeof(T).FullNameInCode()}";
         customize?.Invoke(chain);
+
+        return chain.Metadata;
     }
 
-    public void SendMessage<T>(string url, Action<HttpChain>? customize = null)
+    public RouteHandlerBuilder SendMessage<T>(string url, Action<HttpChain>? customize = null)
     {
-        SendMessage<T>(HttpMethod.Post, url, customize);
+        return SendMessage<T>(HttpMethod.Post, url, customize);
     }
     
 }

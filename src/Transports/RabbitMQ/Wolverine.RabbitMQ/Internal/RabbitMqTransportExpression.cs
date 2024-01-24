@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using RabbitMQ.Client;
+using Wolverine.Configuration;
 using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal;
@@ -123,6 +124,58 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
     public RabbitMqTransportExpression DisableSystemRequestReplyQueueDeclaration()
     {
         Transport.DeclareRequestReplySystemQueue = false;
+
+        return this;
+    }
+
+    /// <summary>
+    /// Turn on listener connection only in case if you only need to listen for messages
+    /// The sender connection won't be activated in this case
+    /// </summary>
+    /// <returns></returns>
+    public RabbitMqTransportExpression UseListenerConnectionOnly()
+    {
+        Transport.UseListenerConnectionOnly = true;
+        Transport.UseSenderConnectionOnly = false;
+
+        return this;
+    }
+    
+    /// <summary>
+    /// Turn on sender connection only in case if you only need to send messages
+    /// The listener connection won't be created in this case
+    /// </summary>
+    /// <returns></returns>
+    public RabbitMqTransportExpression UseSenderConnectionOnly()
+    {
+        Transport.UseSenderConnectionOnly = true;
+        Transport.UseListenerConnectionOnly = false;
+
+        return this;
+    }
+
+    /// <summary>
+    /// Direct Rabbit MQ queues as the control queues between Wolverine nodes
+    /// This is more efficient than the built in Wolverine database control
+    /// queues if Rabbit MQ is an option
+    /// </summary>
+    /// <returns></returns>
+    public RabbitMqTransportExpression EnableWolverineControlQueues()
+    {
+        var queueName = "wolverine.control." + Options.Durability.AssignedNodeNumber;
+        var queue = new RabbitMqQueue(queueName, Transport, EndpointRole.System)
+        {
+            AutoDelete = true,
+            IsDurable = false,
+            IsListener = true,
+            IsUsedForReplies = true,
+            ListenerCount = 5,
+            EndpointName = "Control"
+        };
+
+        Transport.Queues[queueName] = queue;
+
+        Options.Transports.NodeControlEndpoint = queue;
 
         return this;
     }

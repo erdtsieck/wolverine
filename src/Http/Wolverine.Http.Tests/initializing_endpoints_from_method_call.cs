@@ -1,6 +1,7 @@
 using System.Text.Json;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Metadata;
@@ -44,6 +45,20 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
     }
 
     [Fact]
+    public void default_operation_id_is_endpoint_class_and_method()
+    {
+        var endpoint = HttpChain.ChainFor<FakeEndpoint>(x => x.SayHello());
+        endpoint.OperationId.ShouldBe($"{typeof(FakeEndpoint).FullNameInCode()}.{nameof(FakeEndpoint.SayHello)}");
+    }
+
+    [Fact]
+    public void override_operation_id_on_attributes()
+    {
+        var endpoint = HttpChain.ChainFor<FakeEndpoint>(x => x.SayHelloAsync());
+        endpoint.OperationId.ShouldBe("OverriddenId");
+    }
+
+    [Fact]
     public void capturing_the_http_method_metadata()
     {
         var chain = HttpChain.ChainFor<FakeEndpoint>(x => x.SayHello());
@@ -76,15 +91,11 @@ public class initializing_endpoints_from_method_call : IntegrationContext, IDisp
 
         var endpoint = chain.BuildEndpoint();
         var metadata = endpoint.Metadata.OfType<IProducesResponseTypeMetadata>().ToArray();
-        metadata.Length.ShouldBeGreaterThanOrEqualTo(3);
+        metadata.Length.ShouldBeGreaterThanOrEqualTo(2);
 
         var responseBody = metadata.FirstOrDefault(x => x.StatusCode == 200);
         responseBody.Type.ShouldBe(typeof(ArithmeticResults));
         responseBody.ContentTypes.Single().ShouldBe("application/json");
-
-        var badRequest = metadata.FirstOrDefault(x => x.StatusCode == 400);
-        badRequest.ContentTypes.Any().ShouldBeFalse();
-        badRequest.Type.ShouldBe(typeof(void));
 
         var noValue = metadata.FirstOrDefault(x => x.StatusCode == 404);
         noValue.ContentTypes.Any().ShouldBeFalse();

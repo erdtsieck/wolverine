@@ -1,4 +1,6 @@
+using System.Linq.Expressions;
 using Marten;
+using Marten.Linq;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
 using Wolverine.Http.Marten;
@@ -54,6 +56,20 @@ public class InvoicesEndpoint
     }
 
     #endregion
+
+    #region sample_compiled_query_return_endpoint
+    [WolverineGet("/invoices/approved")]
+    public static ApprovedInvoicedCompiledQuery GetApproved()
+    {
+        return new ApprovedInvoicedCompiledQuery();
+    } 
+    #endregion
+    
+    [WolverineGet("/invoices/compiled/{id}")]
+    public static ByIdCompiled GetCompiled(Guid id)
+    {
+        return new ByIdCompiled(id);
+    } 
 }
 
 public class Invoice
@@ -61,4 +77,31 @@ public class Invoice
     public Guid Id { get; set; }
     public bool Paid { get; set; }
     public bool Approved { get; set; }
+}
+
+#region sample_compiled_query_return_query
+
+public class ApprovedInvoicedCompiledQuery : ICompiledListQuery<Invoice>
+{
+    public Expression<Func<IMartenQueryable<Invoice>, IEnumerable<Invoice>>> QueryIs()
+    {
+        return q => q.Where(x => x.Approved);
+    }
+}
+
+#endregion
+
+public class ByIdCompiled : ICompiledQuery<Invoice, Invoice?>
+{
+    public readonly Guid Id;
+
+    public ByIdCompiled(Guid id)
+    {
+        Id = id;
+    }
+    
+    public Expression<Func<IMartenQueryable<Invoice>, Invoice?>> QueryIs()
+    {
+        return q => q.FirstOrDefault(x => x.Id == Id);
+    }
 }

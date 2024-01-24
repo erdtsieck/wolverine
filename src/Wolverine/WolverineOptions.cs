@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Scheduled;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Transports.Local;
 
 [assembly: InternalsVisibleTo("Wolverine.Testing")]
@@ -32,12 +33,13 @@ public sealed partial class WolverineOptions
         Transports = new TransportCollection();
 
         _serializers.Add(EnvelopeReaderWriter.Instance.ContentType, EnvelopeReaderWriter.Instance);
+        _serializers.Add(IntrinsicSerializer.MimeType, new IntrinsicSerializer());
 
         UseSystemTextJsonForSerialization();
 
         CodeGeneration = new GenerationRules("Internal.Generated");
         CodeGeneration.Sources.Add(new NowTimeVariableSource());
-        CodeGeneration.Assemblies.Add(GetType().GetTypeInfo().Assembly);
+        CodeGeneration.Assemblies.Add(GetType().Assembly);
 
         establishApplicationAssembly(assemblyName);
 

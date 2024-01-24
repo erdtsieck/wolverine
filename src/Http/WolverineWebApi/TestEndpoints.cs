@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Linq.Expressions;
 using Marten;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
 
 namespace WolverineWebApi;
@@ -110,10 +112,22 @@ public static class TestEndpoints
 
     #endregion
 
+
+}
+
+public static class QuerystringEndpoints
+{
+    
     [WolverineGet("/querystring/enum")]
     public static string UsingEnumQuerystring(Direction direction)
     {
         return direction.ToString();
+    }
+    
+    [WolverineGet("/querystring/explicit")]
+    public static string UsingEnumQuerystring([FromQuery(Name = "name")]string value)
+    {
+        return value ?? "";
     }
     
     [WolverineGet("/querystring/enum/nullable")]
