@@ -35,7 +35,7 @@ public partial class WolverineRuntime
 
             // Has to be done before initializing the storage
             Handlers.AddMessageHandler(typeof(IAgentCommand), new AgentCommandHandler(this));
-            await Storage.InitializeAsync(this);
+            Storage.Initialize(this);
             
             // This MUST be done before the messaging transports are started up
             _hasStarted = true; // Have to do this before you can use MessageBus
@@ -126,6 +126,15 @@ public partial class WolverineRuntime
         await _endpoints.DrainAsync();
 
         DurabilitySettings.Cancel();
+
+        try
+        {
+            // Do this to release pooled connections in Npgsql just in case
+            await Storage.DisposeAsync();
+        }
+        catch (Exception)
+        {
+        }
     }
 
     private void startInMemoryScheduledJobs()
@@ -152,12 +161,6 @@ public partial class WolverineRuntime
 
         foreach (var transport in Options.Transports)
         {
-            foreach (var endpoint in transport.Endpoints())
-            {
-                endpoint.Runtime = this; // necessary to locate serialization
-                endpoint.Compile(this);
-            }
-            
             if (!Options.ExternalTransportsAreStubbed)
             {
                 await transport.InitializeAsync(this).ConfigureAwait(false);

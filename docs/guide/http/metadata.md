@@ -44,13 +44,18 @@ public static void Configure(HttpChain chain)
     // a request directly to a Wolverine messaging endpoint for later processing
     chain.Metadata.Add(builder =>
     {
-        // Adding and modifying data
+        // Adding metadata
         builder.Metadata.Add(new WolverineProducesResponseTypeMetadata { StatusCode = 202, Type = null });
+    });
+    // This is run after all other metadata has been applied, even after the wolverine built-in metadata
+    // So use this if you want to change or remove some metadata
+    chain.Metadata.Finally(builder =>
+    {
         builder.RemoveStatusCodeResponse(200);
     });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/PublishingEndpoint.cs#L15-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_programmatic_one_off_openapi_metadata' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/PublishingEndpoint.cs#L15-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_programmatic_one_off_openapi_metadata' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Swashbuckle and Wolverine
@@ -160,6 +165,6 @@ public record CreationResponse(string Url) : IHttpAware
 <!-- endSnippet -->
 
 Any endpoint that returns `CreationResponse` or a sub class will automatically expose a status code of `201` for successful
-processing to denote resource creation instead of the generic `200`. Your own custom implementations of the `IHttpAware`
+processing to denote resource creation instead of the generic `200`. Same goes for the built-in `AcceptResponse` type, but returning `202` status. Your own custom implementations of the `IHttpAware`
 interface would apply the metadata declarations at configuration time so that those customizations would be part of the
 exported Swashbuckle documentation of the system.

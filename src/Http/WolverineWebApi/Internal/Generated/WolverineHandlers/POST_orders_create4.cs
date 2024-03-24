@@ -40,9 +40,13 @@ namespace Internal.Generated.WolverineHandlers
                 // The actual HTTP request handler execution
                 (var orderStatus_response, var startStream) = WolverineWebApi.Marten.MarkItemEndpoint.StartOrder4(command);
 
-                
-                // Placed by Wolverine's ISideEffect policy
-                startStream.Execute(documentSession);
+                if (startStream != null)
+                {
+                    
+                    // Placed by Wolverine's ISideEffect policy
+                    startStream.Execute(documentSession);
+
+                }
 
                 
                 // Commit any outstanding Marten changes

@@ -21,6 +21,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
     public RabbitMqTransport() : base(ProtocolName, "Rabbit MQ")
     {
         ConnectionFactory.AutomaticRecoveryEnabled = true;
+        ConnectionFactory.DispatchConsumersAsync = true;
+        
         Queues = new LightweightCache<string, RabbitMqQueue>(name => new RabbitMqQueue(name, this));
         Exchanges = new LightweightCache<string, RabbitMqExchange>(name => new RabbitMqExchange(name, this));
 
@@ -45,7 +47,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
     internal IConnection ListeningConnection => _listenerConnection ??= BuildConnection();
     internal IConnection SendingConnection => _sendingConnection ??= BuildConnection();
 
-    public ConnectionFactory ConnectionFactory { get; } = new();
+    public ConnectionFactory ConnectionFactory { get; } = new(){ClientProvidedName = "Wolverine"};
 
     public IList<AmqpTcpEndpoint> AmqpTcpEndpoints { get; } = new List<AmqpTcpEndpoint>();
 

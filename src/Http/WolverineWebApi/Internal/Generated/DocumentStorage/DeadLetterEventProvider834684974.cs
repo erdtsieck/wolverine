@@ -461,18 +461,6 @@ namespace Marten.Generated.DocumentStorage
             return new Marten.Generated.DocumentStorage.QueryOnlyDeadLetterEventSelector834684974(session, _document);
         }
 
-
-        public override Npgsql.NpgsqlCommand BuildLoadCommand(System.Guid id, string tenant)
-        {
-            return new NpgsqlCommand(_loaderSql).With("id", id);
-        }
-
-
-        public override Npgsql.NpgsqlCommand BuildLoadManyCommand(System.Guid[] ids, string tenant)
-        {
-            return new NpgsqlCommand(_loadArraySql).With("ids", ids);
-        }
-
     }
 
     // END: QueryOnlyDeadLetterEventDocumentStorage834684974
@@ -551,18 +539,6 @@ namespace Marten.Generated.DocumentStorage
         public override Marten.Linq.Selectors.ISelector BuildSelector(Marten.Internal.IMartenSession session)
         {
             return new Marten.Generated.DocumentStorage.LightweightDeadLetterEventSelector834684974(session, _document);
-        }
-
-
-        public override Npgsql.NpgsqlCommand BuildLoadCommand(System.Guid id, string tenant)
-        {
-            return new NpgsqlCommand(_loaderSql).With("id", id);
-        }
-
-
-        public override Npgsql.NpgsqlCommand BuildLoadManyCommand(System.Guid[] ids, string tenant)
-        {
-            return new NpgsqlCommand(_loadArraySql).With("ids", ids);
         }
 
     }
@@ -645,18 +621,6 @@ namespace Marten.Generated.DocumentStorage
             return new Marten.Generated.DocumentStorage.IdentityMapDeadLetterEventSelector834684974(session, _document);
         }
 
-
-        public override Npgsql.NpgsqlCommand BuildLoadCommand(System.Guid id, string tenant)
-        {
-            return new NpgsqlCommand(_loaderSql).With("id", id);
-        }
-
-
-        public override Npgsql.NpgsqlCommand BuildLoadManyCommand(System.Guid[] ids, string tenant)
-        {
-            return new NpgsqlCommand(_loadArraySql).With("ids", ids);
-        }
-
     }
 
     // END: IdentityMapDeadLetterEventDocumentStorage834684974
@@ -735,18 +699,6 @@ namespace Marten.Generated.DocumentStorage
         public override Marten.Linq.Selectors.ISelector BuildSelector(Marten.Internal.IMartenSession session)
         {
             return new Marten.Generated.DocumentStorage.DirtyTrackingDeadLetterEventSelector834684974(session, _document);
-        }
-
-
-        public override Npgsql.NpgsqlCommand BuildLoadCommand(System.Guid id, string tenant)
-        {
-            return new NpgsqlCommand(_loaderSql).With("id", id);
-        }
-
-
-        public override Npgsql.NpgsqlCommand BuildLoadManyCommand(System.Guid[] ids, string tenant)
-        {
-            return new NpgsqlCommand(_loadArraySql).With("ids", ids);
         }
 
     }

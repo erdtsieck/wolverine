@@ -29,11 +29,14 @@ namespace build
             {
                 Run("dotnet",
                     $"build wolverine.sln --no-restore --framework net7.0");
+                
+                Run("dotnet",
+                    $"build wolverine.sln --no-restore --framework net8.0");
             });
 
             Target("clean",() =>
             {
-                Run("dotnet", "clean wolverine.sln --framework net7.0");
+                Run("dotnet", "clean wolverine.sln --framework net8.0");
             });
             
             TestTarget("test-core", "CoreTests");
@@ -89,7 +92,7 @@ namespace build
                 Directory.SetCurrentDirectory(original);
             });
 
-            Target("ci", DependsOn("compile"));
+            Target("ci", DependsOn("test-core"));
 
             Target("install", () =>
                 RunNpm("install"));
@@ -207,7 +210,7 @@ namespace build
 
         private static void RunCurrentProject(string args)
         {
-            Run("dotnet", $"run  --framework net7.0 --no-build --no-restore -- {args}");
+            Run("dotnet", $"run  --framework net8.0 --no-build --no-restore -- {args}");
         }
 
         private static void CopyFilesRecursively(string sourcePath, string targetPath)
@@ -273,7 +276,7 @@ namespace build
             }
 
             
-            Run("dotnet", "test --no-build --no-restore --logger GitHubActions --framework net7.0 " + path);
+            Run("dotnet", "test --no-build --no-restore --logger GitHubActions --framework net8.0 " + path);
 
         }
 

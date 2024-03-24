@@ -40,9 +40,13 @@ namespace Internal.Generated.WolverineHandlers
                 // The actual HTTP request handler execution
                 (var creationResponse_response, var startStream) = WolverineWebApi.Marten.MarkItemEndpoint.StartOrder3(command);
 
-                
-                // Placed by Wolverine's ISideEffect policy
-                startStream.Execute(documentSession);
+                if (startStream != null)
+                {
+                    
+                    // Placed by Wolverine's ISideEffect policy
+                    startStream.Execute(documentSession);
+
+                }
 
                 // This response type customizes the HTTP response
                 ApplyHttpAware(creationResponse_response, httpContext);

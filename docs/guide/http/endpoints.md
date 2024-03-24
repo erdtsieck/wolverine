@@ -94,6 +94,7 @@ In terms of the response type, you can use:
 | `int`                          | Empty        | Value of response |                                                                                |
 | Type that implements `IResult` | Varies       | Varies            | The `IResult.ExecuteAsync()` method is executed                                |
 | `CreationResponse` or subclass | JSON         | 201               | The response is serialized, and writes a `location` response header            |
+| `AcceptResponse` or subclass   | JSON         | 202               | The response is serialized, and writes a `location` response header            |
 | Any other type                 | JSON         | 200               | The response is serialized to JSON                                             |
 
 In all cases up above, if the endpoint method is asynchronous using either `Task<T>` or `ValueTask<T>`, the `T` is the 
@@ -166,7 +167,7 @@ public static OrderShipped Ship(ShipOrder command, Order order)
     return new OrderShipped();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L102-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L105-L118' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## JSON Handling

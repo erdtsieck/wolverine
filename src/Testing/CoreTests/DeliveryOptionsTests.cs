@@ -1,9 +1,8 @@
-using System;
-using CoreTests.Messaging;
 using CoreTests.Util;
 using Wolverine.Util;
 using Xunit;
 using JasperFx.Core;
+using TestingSupport;
 
 namespace CoreTests;
 
@@ -71,6 +70,21 @@ public class DeliveryOptionsTests
         options.Override(envelope);
         
         envelope.GroupId.ShouldBe("group1");
+    }
+
+    [Fact]
+    public void override_deduplication_id()
+    {
+        var options = new DeliveryOptions()
+        {
+            DeduplicationId = "foo"
+        };
+        
+        var envelope = new Envelope();
+        
+        options.Override(envelope);
+        
+        envelope.DeduplicationId.ShouldBe("foo");
     }
 
     [Fact]

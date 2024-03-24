@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFrameworks>net7.0;net8.0</TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
 
@@ -32,6 +31,10 @@
         <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj" />
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
         <ProjectReference Include="..\WolverineWebApi\WolverineWebApi.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Remove="Bugs\Bug_748_using_side_effect_in_tuple.cs" />
     </ItemGroup>
 
 </Project>

@@ -46,9 +46,13 @@ namespace Internal.Generated.WolverineHandlers
             // The actual HTTP request handler execution
             var storeDoc = WolverineWebApi.Bugs.SomeEndpoint.Handle(request, someDocument);
 
-            
-            // Placed by Wolverine's ISideEffect policy
-            storeDoc.Execute(documentSession);
+            if (storeDoc != null)
+            {
+                
+                // Placed by Wolverine's ISideEffect policy
+                storeDoc.Execute(documentSession);
+
+            }
 
             
             // Commit any outstanding Marten changes

@@ -25,9 +25,13 @@ namespace Internal.Generated.WolverineHandlers
             // The actual HTTP request handler execution
             var simpleSideEffect = WolverineWebApi.OpenApiEndpoints.SideEffect();
 
-            
-            // Placed by Wolverine's ISideEffect policy
-            simpleSideEffect.Execute();
+            if (simpleSideEffect != null)
+            {
+                
+                // Placed by Wolverine's ISideEffect policy
+                simpleSideEffect.Execute();
+
+            }
 
             // Wolverine automatically sets the status code to 204 for empty responses
             if (!httpContext.Response.HasStarted) httpContext.Response.StatusCode = 204;

@@ -34,6 +34,13 @@ public interface IMessageOutbox
 
 public interface IMessageStore : IAsyncDisposable
 {
+    // /// <summary>
+    // /// Let's consuming services in Wolverine know that this message store
+    // /// has been disposed and cannot be used in a "DrainAsync". This mostly
+    // /// happens when an IHost is disposed without being cleanly closed first
+    // /// </summary>
+    bool HasDisposed { get; }
+    
     IMessageInbox Inbox { get; }
 
     IMessageOutbox Outbox { get; }
@@ -47,7 +54,7 @@ public interface IMessageStore : IAsyncDisposable
     /// </summary>
     /// <param name="runtime"></param>
     /// <returns></returns>
-    Task InitializeAsync(IWolverineRuntime runtime);
+    void Initialize(IWolverineRuntime runtime);
 
     void Describe(TextWriter writer);
 

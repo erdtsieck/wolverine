@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -306,6 +307,12 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 }
             }
 
+            if (ParsedCollectionQueryStringValue.CanParse(parameter.ParameterType))
+            {
+                variable = new ParsedCollectionQueryStringValue(parameter).Variable;
+                _querystringVariables.Add(variable);
+            }
+
             if (RouteParameterStrategy.CanParse(parameter.ParameterType))
             {
                 variable = new ParsedQueryStringValue(parameter).Variable;
@@ -322,7 +329,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         return variable;
     }
 
-    public bool FindRouteVariable(ParameterInfo parameter, out Variable variable)
+    public bool FindRouteVariable(ParameterInfo parameter, [NotNullWhen(true)]out Variable? variable)
     {
         var existing = _routeVariables.FirstOrDefault(x =>
             x.VariableType == parameter.ParameterType && x.Usage.EqualsIgnoreCase(parameter.Name));
@@ -351,11 +358,11 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             }
         }
 
-        variable = default!;
+        variable = default;
         return false;
     }
 
-    public bool FindRouteVariable(Type variableType, string routeOrParameterName, out Variable variable)
+    public bool FindRouteVariable(Type variableType, string routeOrParameterName, [NotNullWhen(true)]out Variable? variable)
     {
         var matched =
             _routeVariables.FirstOrDefault(x => x.VariableType == variableType && x.Usage == routeOrParameterName);
@@ -383,7 +390,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             }
         }
 
-        variable = default!;
+        variable = default;
         return false;
 
     }

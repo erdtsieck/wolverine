@@ -97,6 +97,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
             dict[nodeId].ActiveAgents.Add(agentId);
         }
 
+        await reader.CloseAsync();
         await conn.CloseAsync();
 
         return nodes;
@@ -164,6 +165,8 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
             }
         }
 
+        await reader.CloseAsync();
+
         return returnValue;
     }
 
@@ -213,7 +216,9 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
             builder.Append($"delete from {_assignmentTable} where id = @{parameter.ParameterName};insert into {_assignmentTable} (id, node_id) values (@{parameter.ParameterName}, @{nodeParameter.ParameterName});");
         }
 
-        await builder.ExecuteNonQueryAsync(conn, cancellationToken);
+        var command = builder.Compile();
+        command.Connection = conn;
+        await command.ExecuteNonQueryAsync(cancellationToken);
 
 
         await conn.CloseAsync();

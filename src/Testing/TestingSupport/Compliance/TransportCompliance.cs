@@ -5,7 +5,6 @@ using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using Shouldly;
 using TestingSupport.ErrorHandling;
-using TestMessages;
 using Wolverine;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
@@ -43,11 +42,14 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
         }
 
         await Sender.StopAsync();
+        Sender.Dispose();
+        
         if (Receiver != null)
         {
             if (!ReferenceEquals(Sender, Receiver))
             {
                 await Receiver.StopAsync();
+                Receiver.Dispose();
             }
         }
     }

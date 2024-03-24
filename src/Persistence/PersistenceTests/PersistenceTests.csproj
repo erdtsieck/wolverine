@@ -1,13 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFrameworks>net7.0;net8.0</TargetFrameworks>
         <IsPackable>false</IsPackable>
-
-        <LangVersion>10</LangVersion>
-
         <RootNamespace>PersistenceTests</RootNamespace>
-
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
@@ -32,11 +27,6 @@
 
     </ItemGroup>
 
-    <ItemGroup Condition="'$(targetframework)' == 'net6.0'">
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="[6.0.0, 8.0.0)" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="[6.0.0, 8.0.0)" />
-    </ItemGroup>
-
     <ItemGroup Condition="'$(targetframework)' == 'net7.0'">
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="[7.0.0, 8.0.0)" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="[7.0.0, 8.0.0)" />
@@ -56,5 +46,6 @@
             <Link>Servers.cs</Link>
         </Compile>
     </ItemGroup>
+
 
 </Project>

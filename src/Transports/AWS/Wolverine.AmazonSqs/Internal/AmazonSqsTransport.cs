@@ -3,6 +3,7 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using JasperFx.Core;
 using Spectre.Console;
+using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
@@ -63,11 +64,16 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
         return SanitizeSqsName(identifier);
     }
 
+    protected override IEnumerable<Endpoint> explicitEndpoints()
+    {
+        return Queues;
+    }
+
     protected override IEnumerable<AmazonSqsQueue> endpoints()
     {
         if (!DisableDeadLetterQueues)
         {
-            var dlqNames = Queues.Select(x => x.DeadLetterQueueName).Where(x => x.IsNotEmpty()).Distinct().ToArray();
+            var dlqNames = Queues.Where(x => x.IsListener).Select(x => x.DeadLetterQueueName).Where(x => x.IsNotEmpty()).Distinct().ToArray();
             foreach (var dlqName in dlqNames) Queues.FillDefault(dlqName!);
         }
 

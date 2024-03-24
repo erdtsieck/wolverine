@@ -104,11 +104,12 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         return Task.CompletedTask;
     }
 
-    public Task InitializeAsync(IWolverineRuntime runtime)
+    public void Initialize(IWolverineRuntime runtime)
     {
-        return Task.CompletedTask;
+
     }
 
+    public bool HasDisposed { get; set; }
     public IMessageInbox Inbox => this;
     public IMessageOutbox Outbox => this;
     public INodeAgentPersistence Nodes => throw new NotSupportedException();
@@ -127,6 +128,7 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 
     public ValueTask DisposeAsync()
     {
+        HasDisposed = true;
         return ValueTask.CompletedTask;
     }
 

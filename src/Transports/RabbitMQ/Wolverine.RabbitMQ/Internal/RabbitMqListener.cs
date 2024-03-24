@@ -77,7 +77,10 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDe
         try
         {
             var result = Channel!.QueueDeclarePassive(queue.QueueName);
-            Logger.LogInformation("{Count} messages in queue {QueueName} at listening start up time", result.MessageCount, queue.QueueName);
+            if (queue.Role == EndpointRole.Application)
+            {
+                Logger.LogInformation("{Count} messages in queue {QueueName} at listening start up time", result.MessageCount, queue.QueueName);
+            }
         }
         catch (Exception e)
         {
@@ -91,7 +94,7 @@ internal class RabbitMqListener : RabbitMqConnectionAgent, IListener, ISupportDe
             _cancellation);
 
         Channel!.BasicQos(0, Queue.PreFetchCount, false);
-        Channel.BasicConsume(_consumer, queue.QueueName);
+        Channel.BasicConsume(_consumer, queue.QueueName, false, transport.ConnectionFactory.ClientProvidedName);
 
         _callback = (queue.DeadLetterQueue != null) &
                     (queue.DeadLetterQueue?.Mode == DeadLetterQueueMode.InteropFriendly)

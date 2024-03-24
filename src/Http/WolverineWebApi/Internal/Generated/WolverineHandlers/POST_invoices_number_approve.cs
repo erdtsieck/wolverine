@@ -42,9 +42,13 @@ namespace Internal.Generated.WolverineHandlers
             // The actual HTTP request handler execution
             var martenOp = WolverineWebApi.Marten.InvoicesEndpoint.Approve(invoice);
 
-            
-            // Placed by Wolverine's ISideEffect policy
-            martenOp.Execute(documentSession);
+            if (martenOp != null)
+            {
+                
+                // Placed by Wolverine's ISideEffect policy
+                martenOp.Execute(documentSession);
+
+            }
 
             
             // Commit any outstanding Marten changes

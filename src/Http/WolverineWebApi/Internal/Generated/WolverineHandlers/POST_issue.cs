@@ -38,9 +38,13 @@ namespace Internal.Generated.WolverineHandlers
             // The actual HTTP request handler execution
             (var issueCreated_response, var insertDoc) = createEndpoint.Create(command);
 
-            
-            // Placed by Wolverine's ISideEffect policy
-            insertDoc.Execute(documentSession);
+            if (insertDoc != null)
+            {
+                
+                // Placed by Wolverine's ISideEffect policy
+                insertDoc.Execute(documentSession);
+
+            }
 
             // This response type customizes the HTTP response
             ApplyHttpAware(issueCreated_response, httpContext);

@@ -102,13 +102,15 @@ public class SagaChain : HandlerChain
         var findSagaId = SagaIdMember == null
             ? (Frame)new PullSagaIdFromEnvelopeFrame(frameProvider.DetermineSagaIdType(SagaType, container))
             : new PullSagaIdFromMessageFrame(MessageType, SagaIdMember);
-        frames.Add(findSagaId);
+        
 
-        var sagaId = findSagaId.Creates.Single();
-
-        var load = frameProvider.DetermineLoadFrame(container, SagaType, sagaId);
-        var saga = load.Creates.Single();
-        frames.Add(load);
+        var load = frameProvider.DetermineLoadFrame(container, SagaType, findSagaId.Creates.Single());
+        
+        // Using this one frame to tie everything together
+        var resolve = new ResolveSagaFrame(findSagaId, load);
+        frames.Add(resolve);
+        var saga = resolve.Saga;
+        var sagaId = resolve.SagaId;
 
         var startingFrames = DetermineSagaDoesNotExistSteps(sagaId, saga, frameProvider, container).ToArray();
         var existingFrames = DetermineSagaExistsSteps(sagaId, saga, frameProvider, container).ToArray();
@@ -121,8 +123,13 @@ public class SagaChain : HandlerChain
     private void generateForOnlyStartingSaga(IContainer container, IPersistenceFrameProvider frameProvider,
         List<Frame> frames)
     {
-        var creator = new CreateNewSagaFrame(SagaType);
-        frames.Add(creator);
+        var sagaVariable = StartingCalls.SelectMany(x => x.Creates).FirstOrDefault(x => x.VariableType == SagaType);
+        if (sagaVariable == null)
+        {
+            var creator = new CreateNewSagaFrame(SagaType);
+            frames.Add(creator);
+            sagaVariable = creator.Saga;
+        }
 
         foreach (var startingCall in StartingCalls)
         {
@@ -130,8 +137,8 @@ public class SagaChain : HandlerChain
             foreach (var frame in startingCall.Creates.SelectMany(x => x.ReturnAction(this).Frames()))
                 frames.Add(frame);
         }
-
-        var ifNotCompleted = buildFrameForConditionalInsert(creator.Saga, frameProvider, container);
+        
+        var ifNotCompleted = buildFrameForConditionalInsert(sagaVariable, frameProvider, container);
         frames.Add(ifNotCompleted);
     }
 

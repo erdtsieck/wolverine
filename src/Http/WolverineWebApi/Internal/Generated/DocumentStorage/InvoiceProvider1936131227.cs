@@ -461,18 +461,6 @@ namespace Marten.Generated.DocumentStorage
             return new Marten.Generated.DocumentStorage.QueryOnlyInvoiceSelector1936131227(session, _document);
         }
 
-
-        public override Npgsql.NpgsqlCommand BuildLoadCommand(System.Guid id, string tenant)
-        {
-            return new NpgsqlCommand(_loaderSql).With("id", id);
-        }
-
-
-        public override Npgsql.NpgsqlCommand BuildLoadManyCommand(System.Guid[] ids, string tenant)
-        {
-            return new NpgsqlCommand(_loadArraySql).With("ids", ids);
-        }
-
     }
 
     // END: QueryOnlyInvoiceDocumentStorage1936131227
@@ -551,18 +539,6 @@ namespace Marten.Generated.DocumentStorage
         public override Marten.Linq.Selectors.ISelector BuildSelector(Marten.Internal.IMartenSession session)
         {
             return new Marten.Generated.DocumentStorage.LightweightInvoiceSelector1936131227(session, _document);
-        }
-
-
-        public override Npgsql.NpgsqlCommand BuildLoadCommand(System.Guid id, string tenant)
-        {
-            return new NpgsqlCommand(_loaderSql).With("id", id);
-        }
-
-
-        public override Npgsql.NpgsqlCommand BuildLoadManyCommand(System.Guid[] ids, string tenant)
-        {
-            return new NpgsqlCommand(_loadArraySql).With("ids", ids);
         }
 
     }
@@ -645,18 +621,6 @@ namespace Marten.Generated.DocumentStorage
             return new Marten.Generated.DocumentStorage.IdentityMapInvoiceSelector1936131227(session, _document);
         }
 
-
-        public override Npgsql.NpgsqlCommand BuildLoadCommand(System.Guid id, string tenant)
-        {
-            return new NpgsqlCommand(_loaderSql).With("id", id);
-        }
-
-
-        public override Npgsql.NpgsqlCommand BuildLoadManyCommand(System.Guid[] ids, string tenant)
-        {
-            return new NpgsqlCommand(_loadArraySql).With("ids", ids);
-        }
-
     }
 
     // END: IdentityMapInvoiceDocumentStorage1936131227
@@ -735,18 +699,6 @@ namespace Marten.Generated.DocumentStorage
         public override Marten.Linq.Selectors.ISelector BuildSelector(Marten.Internal.IMartenSession session)
         {
             return new Marten.Generated.DocumentStorage.DirtyTrackingInvoiceSelector1936131227(session, _document);
-        }
-
-
-        public override Npgsql.NpgsqlCommand BuildLoadCommand(System.Guid id, string tenant)
-        {
-            return new NpgsqlCommand(_loaderSql).With("id", id);
-        }
-
-
-        public override Npgsql.NpgsqlCommand BuildLoadManyCommand(System.Guid[] ids, string tenant)
-        {
-            return new NpgsqlCommand(_loadArraySql).With("ids", ids);
         }
 
     }
