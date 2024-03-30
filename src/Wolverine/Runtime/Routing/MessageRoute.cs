@@ -20,29 +20,31 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
 
     private readonly IReplyTracker _replyTracker;
 
-    public MessageRoute(Type messageType, Endpoint endpoint, IReplyTracker replies) : this(endpoint.DefaultSerializer!,
-        endpoint.Agent!,
-        endpoint.OutgoingRules.Concat(RulesForMessageType(messageType)), replies)
+    public MessageRoute(Type messageType, Endpoint endpoint, IReplyTracker replies) 
     {
         IsLocal = endpoint is LocalQueue;
+        _replyTracker = replies;
+        
+        Sender = endpoint.Agent ?? throw new ArgumentOutOfRangeException(nameof(endpoint), $"Endpoint {endpoint.Uri} does not have an active sending agent");
 
+        IsLocal = endpoint is LocalQueue;
+        
         if (messageType.CanBeCastTo(typeof(ISerializable)))
         {
             Serializer = typeof(IntrinsicSerializer<>).CloseAndBuildAs<IMessageSerializer>(messageType);
         }
+        else
+        {
+            Serializer = endpoint.DefaultSerializer ?? throw new ArgumentOutOfRangeException(nameof(endpoint), "No DefaultSerializer on endpoint " + endpoint.Uri);
+        }
+
+        Rules.AddRange(endpoint.OutgoingRules);
+        Rules.AddRange(RulesForMessageType(messageType));
+
+        MessageType = messageType;
     }
 
-    public MessageRoute(IMessageSerializer serializer, ISendingAgent sender, IEnumerable<IEnvelopeRule> rules,
-        IReplyTracker replyTracker)
-    {
-        _replyTracker = replyTracker;
-        Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
-        Sender = sender ?? throw new ArgumentNullException(nameof(sender));
-        Rules.AddRange(rules);
-
-        IsLocal = sender.Endpoint is LocalQueue;
-
-    }
+    public Type MessageType { get; }
 
     public bool IsLocal { get; }
 

@@ -8,6 +8,7 @@ using Microsoft.Extensions.ObjectPool;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Routing;
@@ -158,6 +159,14 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
     {
         try
         {
+            foreach (var rule in Options.HandledTypeRules)
+            {
+                if (rule.TryFindHandledType(messageType, out var handledType))
+                {
+                    return this.As<IExecutorFactory>().BuildFor(handledType);
+                }
+            }
+
             if (Options.HandlerGraph.CanHandle(messageType))
             {
                 return this.As<IExecutorFactory>().BuildFor(messageType);
