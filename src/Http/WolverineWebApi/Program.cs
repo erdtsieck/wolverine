@@ -9,6 +9,7 @@ using Oakton.Resources;
 using Wolverine;
 using Wolverine.AdminApi;
 using Wolverine.EntityFrameworkCore;
+using Wolverine.ErrorHandling;
 using Wolverine.FluentValidation;
 using Wolverine.Http;
 using Wolverine.Http.FluentValidation;
@@ -67,6 +68,7 @@ builder.Host.UseWolverine(opts =>
     opts.UseEntityFrameworkCoreTransactions();
 
     opts.Policies.AutoApplyTransactions();
+    opts.Policies.OnExceptionOfType(typeof(AlwaysDeadLetterException)).MoveToErrorQueue();
 
     opts.UseFluentValidation();
     opts.Discovery.IncludeAssembly(typeof(CreateCustomer2).Assembly);
@@ -84,7 +86,15 @@ builder.Services.ConfigureSystemTextJsonForWolverineOrMinimalApi(o =>
     o.SerializerOptions.WriteIndented = true;
 });
 
+#region sample_calling_ApplyAsyncWolverineExtensions
+
 var app = builder.Build();
+
+// In order for async Wolverine extensions to apply to Wolverine.HTTP configuration,
+// you will need to explicitly call this *before* MapWolverineEndpoints()
+await app.Services.ApplyAsyncWolverineExtensions();
+
+#endregion
 
 //Force the default culture to not be en-US to ensure code is culture agnostic
 var supportedCultures = new[] { "fr-FR", "en-US" };
@@ -113,6 +123,18 @@ app.MapPost("/orders", Results<BadRequest, Ok<Order>>(CreateOrder command)
 app.MapHub<BroadcastHub>("/updates");
 
 app.MapWolverineAdminApiEndpoints();
+
+#region sample_register_dead_letter_endpoints
+app.MapDeadLettersEndpoints()
+    
+    // It's a Minimal API endpoint group,
+    // so you can add whatever authorization
+    // or OpenAPI metadata configuration you need
+    // for just these endpoints
+    //.RequireAuthorization("Admin")
+    
+    ;
+#endregion
 
 #region sample_using_configure_endpoints
 
@@ -159,7 +181,8 @@ app.MapWolverineEndpoints(opts =>
     opts.PublishMessage<HttpMessage2>("/publish/message2").WithTags("messages");
     opts.SendMessage<HttpMessage5>(HttpMethod.Post, "/send/message5").WithTags("messages");
     opts.SendMessage<HttpMessage6>("/send/message6").WithTags("messages");
-    
+    opts.SendMessage<MessageThatAlwaysGoesToDeadLetter>(HttpMethod.Post, "/send/always-dead-letter").WithTags("messages");
+
     opts.AddPolicy<StreamCollisionExceptionPolicy>();
 
 

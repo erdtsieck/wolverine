@@ -249,6 +249,28 @@ public static class HostBuilderExtensions
     }
 
     /// <summary>
+    /// Add a wolverine extension to the IoC container to apply extra configuration to your system
+    /// </summary>
+    /// <param name="services"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public static IServiceCollection AddWolverineExtension<T>(this IServiceCollection services) where T : class, IWolverineExtension
+    {
+        return services.AddSingleton<IWolverineExtension, T>();
+    }
+    
+    /// <summary>
+    /// Add an asynchronous wolverine extension to the IoC container to apply extra configuration to your system
+    /// </summary>
+    /// <param name="services"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public static IServiceCollection AddAsyncWolverineExtension<T>(this IServiceCollection services) where T : class, IAsyncWolverineExtension
+    {
+        return services.AddSingleton<IAsyncWolverineExtension, T>();
+    }
+
+    /// <summary>
     ///     Validate all of the Wolverine configuration of this Wolverine application.
     ///     This:
     ///     1. Checks that all of the known generated code elements are valid
@@ -265,6 +287,16 @@ public static class HostBuilderExtensions
         }
     }
 
+    /// <summary>
+    /// Apply all asynchronous Wolverine configuration extensions to the Wolverine application.
+    /// This is necessary if you are using Wolverine.HTTP endpoints
+    /// </summary>
+    /// <param name="services"></param>
+    public static Task ApplyAsyncWolverineExtensions(this IServiceProvider services)
+    {
+        return services.GetRequiredService<IWolverineRuntime>().As<WolverineRuntime>().ApplyAsyncExtensions();
+    }
+
 
     /// <summary>
     ///     Disable all Wolverine messaging outside the current process. This is almost entirely
@@ -273,7 +305,6 @@ public static class HostBuilderExtensions
     /// </summary>
     /// <param name="services"></param>
     /// <returns></returns>
-
     #region sample_extension_method_to_disable_external_transports
 
     public static IServiceCollection DisableAllExternalWolverineTransports(this IServiceCollection services)

@@ -13,11 +13,11 @@ namespace Wolverine.Middleware;
 
 public class MiddlewarePolicy : IChainPolicy
 {
-    public static readonly string[] BeforeMethodNames = { "Before", "BeforeAsync", "Load", "LoadAsync" };
-    public static readonly string[] AfterMethodNames = { "After", "AfterAsync", "PostProcess", "PostProcessAsync" };
-    public static readonly string[] FinallyMethodNames = { "Finally", "FinallyAsync" };
+    public static readonly string[] BeforeMethodNames = ["Before", "BeforeAsync", "Load", "LoadAsync"];
+    public static readonly string[] AfterMethodNames = ["After", "AfterAsync", "PostProcess", "PostProcessAsync"];
+    public static readonly string[] FinallyMethodNames = ["Finally", "FinallyAsync"];
 
-    private readonly List<Application> _applications = new();
+    private readonly List<Application> _applications = [];
 
     public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
     {
@@ -48,7 +48,7 @@ public class MiddlewarePolicy : IChainPolicy
             befores.SelectMany(x => x.Creates).Any(x => x.VariableType == chain.InputType()))
         {
             throw new InvalidWolverineMiddlewareException(
-                "It's not currently legal in Wolverine to return the message type from middleware");
+                $"It's not currently legal in Wolverine to return the message type for a handler or the request type for an HTTP chain from middleware. Chain: {chain}. If you receive this on the compilation for an HTTP endpoint, you may want to use [NotBody] on the HTTP endpoint parameter so Wolverine will not use that parameter as the request body model");
         }
 
         for (var i = 0; i < befores.Length; i++)
@@ -112,7 +112,9 @@ public class MiddlewarePolicy : IChainPolicy
             _afters = FilterMethods<WolverineAfterAttribute>(methods, AfterMethodNames).ToArray();
             _finals = FilterMethods<WolverineFinallyAttribute>(methods, FinallyMethodNames).ToArray();
 
-            if (!_befores.Any() && !_afters.Any() && !_finals.Any())
+            if (_befores.Length == 0 &&
+                _afters.Length == 0 &&
+                _finals.Length == 0)
             {
                 throw new InvalidWolverineMiddlewareException(middlewareType);
             }
@@ -127,7 +129,7 @@ public class MiddlewarePolicy : IChainPolicy
         public IEnumerable<Frame> BuildBeforeCalls(IChain chain, GenerationRules rules)
         {
             var frames = buildBefores(chain, rules).ToArray();
-            if (frames.Any() && !MiddlewareType.IsStatic())
+            if (frames.Length != 0 && !MiddlewareType.IsStatic())
             {
                 var constructorFrame = new ConstructorFrame(MiddlewareType, _constructor!);
                 if (MiddlewareType.CanBeCastTo<IDisposable>() || MiddlewareType.CanBeCastTo<IAsyncDisposable>())
@@ -143,24 +145,24 @@ public class MiddlewarePolicy : IChainPolicy
 
         private IEnumerable<Frame> wrapBeforeFrame(MethodCall call, GenerationRules rules)
         {
-            if (_finals.Any())
-            {
-                if (rules.TryFindContinuationHandler(call, out var frame))
-                {
-                    call.Next = frame;
-                }
-
-                Frame[] finals = _finals.Select(x => new MethodCall(MiddlewareType, x)).OfType<Frame>().ToArray();
-
-                yield return new TryFinallyWrapperFrame(call, finals);
-            }
-            else
+            if (_finals.Length == 0)
             {
                 yield return call;
                 if (rules.TryFindContinuationHandler(call, out var frame))
                 {
                     yield return frame!;
                 }
+            }
+            else
+            {
+                if (rules.TryFindContinuationHandler(call, out var frame))
+                {
+                    call.Next = frame;
+                }
+
+                var finals = _finals.Select(x => new MethodCall(MiddlewareType, x)).OfType<Frame>().ToArray();
+
+                yield return new TryFinallyWrapperFrame(call, finals);
             }
         }
 
@@ -191,7 +193,8 @@ public class MiddlewarePolicy : IChainPolicy
                 yield break;
             }
 
-            if (!_befores.Any() && _finals.Any())
+            if (_befores.Length == 0 &&
+                _finals.Length != 0)
             {
                 var finals = buildFinals(chain).ToArray();
 
@@ -235,7 +238,7 @@ public class MiddlewarePolicy : IChainPolicy
         {
             var afters = buildAfters(chain).ToArray();
 
-            if (afters.Any() && !MiddlewareType.IsStatic())
+            if (afters.Length != 0 && !MiddlewareType.IsStatic())
             {
                 if (chain.Middleware.OfType<ConstructorFrame>().All(x => x.Variable.VariableType != MiddlewareType))
                 {

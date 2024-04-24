@@ -14,7 +14,6 @@ using Wolverine.Runtime.WorkerQueues;
 using Wolverine.SqlServer.Schema;
 using Wolverine.SqlServer.Util;
 using Wolverine.Transports;
-using CommandExtensions = Weasel.Core.CommandExtensions;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
 namespace Wolverine.SqlServer.Persistence;
@@ -131,6 +130,41 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         }
     }
 
+    public override Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null)
+    {
+        var table = new DataTable();
+        table.Columns.Add(new DataColumn("ID", typeof(Guid)));
+        foreach (var id in ids)
+        {
+            table.Rows.Add(id);
+        }
+        
+        var command = CreateCommand($"update {SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = @replay where id in (select ID from @IDLIST)");
+        command.With("replay", true);
+        var list = command.AddNamedParameter("IDLIST", table).As<SqlParameter>();
+        list.SqlDbType = SqlDbType.Structured;
+        list.TypeName = $"{SchemaName}.EnvelopeIdList";
+
+        return command.ExecuteNonQueryAsync(_cancellation);
+    }
+
+    public override Task DeleteDeadLetterEnvelopesAsync(Guid[] ids, string? tenantId = null)
+    {
+        var table = new DataTable();
+        table.Columns.Add(new DataColumn("ID", typeof(Guid)));
+        foreach (var id in ids)
+        {
+            table.Rows.Add(id);
+        }
+        
+        var command = CreateCommand($"delete from {SchemaName}.{DatabaseConstants.DeadLetterTable} where id in (select ID from @IDLIST)");
+        var list = command.AddNamedParameter("IDLIST", table).As<SqlParameter>();
+        list.SqlDbType = SqlDbType.Structured;
+        list.TypeName = $"{SchemaName}.EnvelopeIdList";
+
+        return command.ExecuteNonQueryAsync(_cancellation);
+    }
+
     public override void Describe(TextWriter writer)
     {
         writer.WriteLine($"Sql Server Envelope Storage in Schema '{SchemaName}'");
@@ -190,7 +224,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         builder.Append( $"select TOP {Durability.RecoveryBatchSize} {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= ");
         builder.AppendParameter(utcNow);
         builder.Append(" order by execution_time");
-        builder.Append(";");
+        builder.Append(';');
     }
 
     public override async Task PollForScheduledMessagesAsync(ILocalReceiver localQueue,

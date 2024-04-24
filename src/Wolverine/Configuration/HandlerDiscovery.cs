@@ -15,11 +15,11 @@ public sealed partial class HandlerDiscovery
     private readonly TypeQuery _messageQuery = new(TypeClassification.Concretes| TypeClassification.Closed);
 
     private readonly string[] _validMethods =
-    {
+    [
         HandlerChain.Handle, HandlerChain.Handles, HandlerChain.Consume, HandlerChain.Consumes, SagaChain.Orchestrate,
         SagaChain.Orchestrates, SagaChain.Start, SagaChain.Starts, SagaChain.StartOrHandle, SagaChain.StartsOrHandles,
         SagaChain.NotFound
-    };
+    ];
 
     private bool _conventionalDiscoveryDisabled;
 
@@ -67,7 +67,7 @@ public sealed partial class HandlerDiscovery
             method => method.HasAttribute<WolverineIgnoreAttribute>());
 
 
-        MethodExcludes.WithCondition("Has no arguments", m => !m.GetParameters().Any());
+        MethodExcludes.WithCondition("Has no arguments", m => m.GetParameters().Length == 0);
 
         MethodExcludes.WithCondition("Cannot determine a valid message type", m => m.MessageType() == null);
 
@@ -77,6 +77,7 @@ public sealed partial class HandlerDiscovery
 
     private void specifyHandlerDiscovery()
     {
+        HandlerQuery.Excludes.WithCondition("Not GeneratedStreamStateQueryHandler", t => t.Name == "GeneratedStreamStateQueryHandler");
         HandlerQuery.Includes.WithNameSuffix(HandlerChain.HandlerSuffix);
         HandlerQuery.Includes.WithNameSuffix(HandlerChain.ConsumerSuffix);
         HandlerQuery.Includes.Implements<Saga>();

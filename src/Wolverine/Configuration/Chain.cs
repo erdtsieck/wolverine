@@ -19,15 +19,15 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     where TChain : Chain<TChain, TModifyAttribute>
     where TModifyAttribute : Attribute, IModifyChain<TChain>
 {
-    private readonly List<Type> _dependencies = new();
-    public List<Frame> Middleware { get; } = new();
+    private readonly List<Type> _dependencies = [];
+    public List<Frame> Middleware { get; } = [];
 
-    public List<Frame> Postprocessors { get; } = new();
+    public List<Frame> Postprocessors { get; } = [];
 
     public Dictionary<string, object> Tags { get; } = new();
 
     public abstract string Description { get; }
-    public List<AuditedMember> AuditedMembers { get; } = new();
+    public List<AuditedMember> AuditedMembers { get; } = [];
     public abstract bool ShouldFlushOutgoingMessages();
     public abstract bool RequiresOutbox();
 
@@ -73,17 +73,13 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
             return false;
         }
 
-        if (method.GetParameters().Length != 1)
+        var parameters = method.GetParameters();
+        if (parameters.Length != 1)
         {
             return false;
         }
 
-        if (typeof(TChain).CanBeCastTo(method.GetParameters().Single().ParameterType))
-        {
-            return true;
-        }
-
-        return false;
+        return typeof(TChain).CanBeCastTo(parameters.Single().ParameterType);
     }
 
 
@@ -113,7 +109,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
             .SelectMany(x => x.GetMethods())
             .Where(isConfigureMethod);
 
-        foreach (var method in configureMethods) method.Invoke(null, new object[] { this });
+        foreach (var method in configureMethods) method.Invoke(null, [this]);
 
         var handlerAtts = handlers.SelectMany(x => x.HandlerType
             .GetCustomAttributes<TModifyAttribute>());

@@ -24,12 +24,12 @@ public class DatabaseEnvelopeTransaction : IEnvelopeTransaction, IDisposable
 
     public Task PersistOutgoingAsync(Envelope envelope)
     {
-        return PersistOutgoingAsync(new[] { envelope });
+        return PersistOutgoingAsync([envelope]);
     }
 
     public Task PersistOutgoingAsync(Envelope[] envelopes)
     {
-        if (!envelopes.Any())
+        if (envelopes.Length == 0)
         {
             return Task.CompletedTask;
         }
@@ -39,7 +39,7 @@ public class DatabaseEnvelopeTransaction : IEnvelopeTransaction, IDisposable
 
     public Task PersistIncomingAsync(Envelope envelope)
     {
-        return _persistence.StoreIncomingAsync(_tx, new[] { envelope });
+        return _persistence.StoreIncomingAsync(_tx, [envelope]);
     }
 
     public ValueTask RollbackAsync()

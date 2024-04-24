@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using System.Text.Json;
 using Lamar;
 using Microsoft.AspNetCore.Builder;
@@ -156,6 +155,8 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         Action<WolverineHttpOptions>? configure = null)
     {
         var runtime = GetWolverineRuntime(endpoints);
+
+        runtime.WarnIfAnyAsyncExtensions();
 
         var container = (IContainer)endpoints.ServiceProvider;
 
