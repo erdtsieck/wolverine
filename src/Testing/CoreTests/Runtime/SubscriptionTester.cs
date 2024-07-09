@@ -45,7 +45,6 @@ public class SubscriptionTester
         rule.ToString().ShouldBe("Message name is 'CoreTests.Runtime.RandomClass'");
     }
 
-
     [Fact]
     public void description_of_all_types()
     {
@@ -101,6 +100,4 @@ public class SubscriptionTester
     }
 }
 
-public class RandomClass
-{
-}
+public class RandomClass;

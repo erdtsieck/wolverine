@@ -1,5 +1,4 @@
-﻿using System.Threading.Tasks;
-using TestingSupport;
+﻿using TestingSupport;
 using TestingSupport.Compliance;
 using Xunit;
 
@@ -88,10 +87,6 @@ public class AsyncHandler
     }
 }
 
-public class DoubleAction : IDoubleAction
-{
-}
+public class DoubleAction : IDoubleAction;
 
-public interface IDoubleAction
-{
-}
+public interface IDoubleAction;

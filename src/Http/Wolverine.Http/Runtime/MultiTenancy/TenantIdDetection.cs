@@ -43,18 +43,22 @@ internal class TenantIdDetection : ITenantDetectionPolicies, IHttpPolicy
     {
         Strategies.Add(detection);
     }
-    
+
+    public void DefaultIs(string defaultTenantId)
+    {
+        Strategies.Add(new FallbackDefault(defaultTenantId));
+    }
+
     internal IContainer? Container { get; set; }
 
     public void DetectWith<T>() where T : ITenantDetection
     {
         if (Container == null) throw new InvalidOperationException("The Container has not been set yet");
-        
+
         DetectWith(Container.GetInstance<T>());
     }
 
     public bool AssertTenantExists { get; set; }
-
 
     public bool ShouldAssertTenantIdExists(HttpChain chain)
     {

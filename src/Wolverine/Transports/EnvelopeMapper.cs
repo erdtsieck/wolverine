@@ -20,9 +20,7 @@ public interface IIncomingMapper<TIncoming>
     IEnumerable<string> AllHeaders();
 }
 
-public interface IEnvelopeMapper<TIncoming, TOutgoing> : IOutgoingMapper<TOutgoing>, IIncomingMapper<TIncoming>
-{
-}
+public interface IEnvelopeMapper<TIncoming, TOutgoing> : IOutgoingMapper<TOutgoing>, IIncomingMapper<TIncoming>;
 
 public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIncoming, TOutgoing>
 {
@@ -85,7 +83,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
 
     public void MapEnvelopeToOutgoing(Envelope envelope, TOutgoing outgoing)
     {
-        
+
         _mapOutgoing.Value(envelope, outgoing);
         writeOutgoingHeader(outgoing, TransportConstants.ProtocolVersion, "1.0"); // fancier later
     }
@@ -199,7 +197,6 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
             list.Add(invoke);
         }
 
-
         var block = Expression.Block(list);
 
         var lambda = Expression.Lambda<Action<Envelope, TIncoming>>(block, envelope, incoming);
@@ -283,14 +280,12 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
             list.Add(invoke);
         }
 
-
         var block = Expression.Block(list);
 
         var lambda = Expression.Lambda<Action<Envelope, TOutgoing>>(block, envelope, outgoing);
 
         return lambda.CompileFast();
     }
-
 
     protected void writeOutgoingOtherHeaders(TOutgoing outgoing, Envelope envelope)
     {
@@ -318,7 +313,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
     {
         return tryReadIncomingHeader(incoming, key, out var value)
             ? value!.Split(',')
-            : Array.Empty<string>();
+            : [];
     }
 
     protected int readInt(TIncoming incoming, string key)

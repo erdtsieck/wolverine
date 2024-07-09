@@ -16,7 +16,7 @@ using Endpoint = Microsoft.AspNetCore.Http.Endpoint;
 
 namespace Wolverine.Http;
 
-public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChangeToken, IDescribedSystemPart,
+public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServices, IChangeToken, IDescribedSystemPart,
     IWriteToConsole
 {
     public static readonly string Context = "httpContext";
@@ -107,9 +107,9 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollection, IChang
         }
 
         _chains.AddRange(calls.Select(x => new HttpChain(x, this)));
-        
+
         wolverineHttpOptions.Middleware.Apply(_chains, Rules, Container);
-        _optionsWriterPolicies.AddRange(wolverineHttpOptions.ResourceWriterPolicies); 
+        _optionsWriterPolicies.AddRange(wolverineHttpOptions.ResourceWriterPolicies);
 
         var policies = _options.Policies.OfType<IChainPolicy>();
         foreach (var policy in policies) policy.Apply(_chains, Rules, Container);

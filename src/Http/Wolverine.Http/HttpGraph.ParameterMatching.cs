@@ -1,4 +1,5 @@
 using System.Reflection;
+using JasperFx.CodeGeneration.Frames;
 using Wolverine.Http.CodeGen;
 
 namespace Wolverine.Http;
@@ -20,18 +21,28 @@ public partial class HttpGraph
 
     internal void ApplyParameterMatching(HttpChain chain)
     {
-        var parameters = chain.Method.Method.GetParameters();
+        var methodCall = chain.Method;
+        ApplyParameterMatching(chain, methodCall);
+    }
+
+    internal void ApplyParameterMatching(HttpChain chain, MethodCall methodCall)
+    {
+        var parameters = methodCall.Method.GetParameters();
         for (var i = 0; i < parameters.Length; i++)
         {
             var parameter = parameters[i];
 
-            if (!TryMatchParameter(chain, parameter, i))
+            // Do *not* do anything if the argument variable has already
+            // been resolved
+            if (methodCall.Arguments[i] != null) continue;
+
+            if (!TryMatchParameter(chain, methodCall, parameter, i))
             {
             }
         }
     }
 
-    internal bool TryMatchParameter(HttpChain chain, ParameterInfo parameter, int i)
+    internal bool TryMatchParameter(HttpChain chain, MethodCall methodCall, ParameterInfo parameter, int i)
     {
         foreach (var strategy in _strategies)
         {
@@ -44,7 +55,7 @@ public partial class HttpGraph
                         chain.Middleware.Add(variable.Creator);
                     }
 
-                    chain.Method.Arguments[i] = variable;
+                    methodCall.Arguments[i] = variable;
                 }
 
                 return true;

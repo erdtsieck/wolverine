@@ -1,6 +1,3 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using TestingSupport.Compliance;
 using Xunit;
@@ -46,6 +43,4 @@ public class PulsarTransportFixture : TransportComplianceFixture, IAsyncLifetime
 }
 
 [Collection("acceptance")]
-public class PulsarTransportComplianceTests : TransportCompliance<PulsarTransportFixture>
-{
-}
+public class PulsarTransportComplianceTests : TransportCompliance<PulsarTransportFixture>;

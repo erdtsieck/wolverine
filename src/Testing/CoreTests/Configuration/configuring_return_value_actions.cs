@@ -5,13 +5,10 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using TestingSupport;
-using Wolverine.Middleware;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 
 namespace CoreTests.Configuration;
-
-
 
 public class configuring_return_value_actions
 {
@@ -24,7 +21,7 @@ public class configuring_return_value_actions
         private readonly CommentFrame comment1;
         private readonly CommentFrame comment2;
         private readonly ReturnVariableAction theAction;
-        
+
 
         public ReturnVariableActionTests()
         {
@@ -34,10 +31,10 @@ public class configuring_return_value_actions
             theAction = new ReturnVariableAction();
             theAction.Frames.Add(comment1);
             theAction.Frames.Add(comment2);
-            
+
             theAction.Dependencies.Add(typeof(IServiceProvider));
             theAction.Dependencies.Add(typeof(DbConnection));
-            
+
         }
 
         [Fact]
@@ -54,7 +51,7 @@ public class configuring_return_value_actions
                 .Dependencies().ShouldHaveTheSameElementsAs(typeof(IServiceProvider), typeof(DbConnection));
         }
     }
-    
+
     [Fact]
     public void use_variable_action()
     {
@@ -62,9 +59,9 @@ public class configuring_return_value_actions
         var variable = Variable.For<string>();
 
         var action = variable.UseReturnAction(v => comment);
-        
+
         action.Description.ShouldBe("Override");
-        
+
         action.Frames.Single().ShouldBe(comment);
     }
 
@@ -75,7 +72,7 @@ public class configuring_return_value_actions
         var variable = Variable.For<string>();
 
         var action = variable.UseReturnAction(v => comment);
-        
+
         variable.ReturnAction(theChain).ShouldBeSameAs(action);
     }
 
@@ -144,7 +141,7 @@ public class configuring_return_value_actions
         {
             var call = theVariableAction.Frames().Single()
                 .ShouldBeOfType<MethodCall>();
-            
+
             call.Method.Name.ShouldBe(nameof(WriteFile.Execute));
             call.HandlerType.ShouldBe(typeof(WriteFile));
         }
@@ -160,11 +157,11 @@ public class configuring_return_value_actions
         {
             var call = theVariableAction.Frames().Single()
                 .ShouldBeOfType<MethodCall>();
-            
+
             call.CommentText.ShouldBe("some description");
         }
     }
-    
+
     public class when_calling_method_on_return_variable_if_not_null
     {
         private readonly Variable theVariable = Variable.For<WriteFile>();
@@ -177,10 +174,10 @@ public class configuring_return_value_actions
 
             var chain = HandlerChain.For<FooHandler>(x => x.Handle(null), new HandlerGraph());
             theVariableAction = theVariable.ReturnAction(chain);
-            
+
             var wrapper = theVariableAction.ShouldBeOfType<CallMethodReturnVariableAction<WriteFile>>().Frames().Single().ShouldBeOfType<IfElseNullGuardFrame.IfNullGuardFrame>();
             theMethodCall = wrapper.Inners.Single()
-                
+
                 .ShouldBeOfType<MethodCall>();
         }
 
@@ -200,7 +197,7 @@ public class configuring_return_value_actions
         public void should_serve_up_method_call_for_frame()
         {
             var call = theMethodCall;
-            
+
             call.Method.Name.ShouldBe(nameof(WriteFile.Execute));
             call.HandlerType.ShouldBe(typeof(WriteFile));
         }
@@ -219,7 +216,6 @@ public class configuring_return_value_actions
     }
 }
 
-
 public class WriteFile
 {
     public Task Execute(IFileService service)
@@ -228,4 +224,4 @@ public class WriteFile
     }
 }
 
-public interface IFileService{}
+public interface IFileService;

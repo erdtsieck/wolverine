@@ -1,5 +1,6 @@
 using JasperFx.Core;
 using Marten;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
 using Shouldly;
@@ -31,7 +32,6 @@ public class TestingSupportSamples
         #endregion
     }
 }
-
 
 public static class AccountHandler
 {
@@ -104,7 +104,7 @@ public class AccountHandlerTests
                 delivery.ScheduleDelay.Value.ShouldNotBe(TimeSpan.Zero);
             })
             .AccountId.ShouldBe(account.Id);
-        
+
         // Assert that there are no messages of type AccountOverdrawn
         messages.ShouldHaveNoMessageOfType<AccountOverdrawn>();
     }
@@ -143,29 +143,29 @@ public class AccountHandlerTests
 
         var debitAccount = new DebitAccount(111, 300);
         var session = await host
-                
-            // Start defining a tracked session 
+
+            // Start defining a tracked session
             .TrackActivity()
-            
+
             // Override the timeout period for longer tests
             .Timeout(1.Minutes())
-            
+
             // Be careful with this one! This makes Wolverine wait on some indication
             // that messages sent externally are completed
             .IncludeExternalTransports()
-            
+
             // Make the tracked session span across an IHost for another process
             // May not be super useful to the average user, but it's been crucial
             // to test Wolverine itself
             .AlsoTrack(otherWolverineSystem)
 
-            // This is actually helpful if you are testing for error handling 
+            // This is actually helpful if you are testing for error handling
             // functionality in your system
             .DoNotAssertOnExceptionsDetected()
-            
+
             // Again, this is testing against processes, with another IHost
             .WaitForMessageToBeReceivedAt<LowBalanceDetected>(otherWolverineSystem)
-            
+
             // There are many other options as well
             .InvokeMessageAndWaitAsync(debitAccount);
 
@@ -176,10 +176,7 @@ public class AccountHandlerTests
     #endregion
 }
 
-
-
-
-// The attribute directs Wolverine to send this message with 
+// The attribute directs Wolverine to send this message with
 // a "deliver within 5 seconds, or discard" directive
 [DeliverWithin(5)]
 public record AccountUpdated(long AccountId, decimal Balance);
@@ -199,3 +196,84 @@ public interface IAccountCommand
 {
     long AccountId { get; }
 }
+
+#region sample_send_message_on_file_change
+public record FileAdded(string FileName);
+
+public class FileAddedHandler
+{
+    public Task Handle(
+        FileAdded message
+    ) =>
+        Task.CompletedTask;
+}
+
+public class RandomFileChange
+{
+    private readonly IMessageBus _messageBus;
+
+    public RandomFileChange(
+        IMessageBus messageBus
+    ) => _messageBus = messageBus;
+
+    public async Task SimulateRandomFileChange()
+    {
+        // Delay task with a random number of milliseconds
+        // Here would be your FileSystemWatcher / IFileProvider
+        await Task.Delay(
+            TimeSpan.FromMilliseconds(
+                new Random().Next(100, 1000)
+            )
+        );
+        var randomFileName = Path.GetRandomFileName();
+        await _messageBus.SendAsync(new FileAdded(randomFileName));
+    }
+}
+
+public class When_message_is_sent : IAsyncLifetime
+{
+    private IHost _host;
+
+    public async Task InitializeAsync()
+    {
+        var hostBuilder = Host.CreateDefaultBuilder();
+        hostBuilder.ConfigureServices(
+            services => { services.AddSingleton<RandomFileChange>(); }
+        );
+        hostBuilder.UseWolverine();
+
+        _host = await hostBuilder.StartAsync();
+    }
+
+    [Fact]
+    public async Task should_be_in_session()
+    {
+        var randomFileChange = _host.Services.GetRequiredService<RandomFileChange>();
+
+        var session = await _host
+            .TrackActivity()
+            .Timeout(2.Seconds())
+            .ExecuteAndWaitAsync(
+                (Func<IMessageContext, Task>)(
+                    async (
+                        _
+                    ) => await randomFileChange.SimulateRandomFileChange()
+                )
+            );
+
+        session
+            .Sent
+            .AllMessages()
+            .Count()
+            .ShouldBe(1);
+        
+        session
+            .Sent
+            .AllMessages()
+            .First()
+            .ShouldBeOfType<FileAdded>();
+    }
+
+    public async Task DisposeAsync() => await _host.StopAsync();
+}
+#endregion

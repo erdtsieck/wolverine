@@ -1,5 +1,4 @@
-﻿using JasperFx.Core;
-using Microsoft.AspNetCore.Http.Metadata;
+﻿using Microsoft.AspNetCore.Http.Metadata;
 using Shouldly;
 using WolverineWebApi;
 
@@ -10,7 +9,6 @@ public class using_create_response_and_metadata_derived_from_response_type : Int
     public using_create_response_and_metadata_derived_from_response_type(AppFixture fixture) : base(fixture)
     {
     }
-
 
     [Fact]
     public void read_metadata_from_IEndpointMetadataProvider()

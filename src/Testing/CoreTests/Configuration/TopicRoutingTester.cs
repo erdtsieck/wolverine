@@ -1,4 +1,3 @@
-using System;
 using Wolverine.Attributes;
 using Wolverine.Runtime.Routing;
 using Xunit;
@@ -8,9 +7,7 @@ namespace CoreTests.Configuration;
 #region sample_using_Topic_attribute
 
 [Topic("one")]
-public class TopicMessage1
-{
-}
+public class TopicMessage1;
 
 #endregion
 
@@ -20,20 +17,14 @@ public class ColorMessagee
 }
 
 [MessageIdentity("one")]
-public class M1
-{
-}
+public class M1;
 
 [Topic("two")]
-public class M2
-{
-}
+public class M2;
 
 [Topic("three")]
 [MessageIdentity("third")]
-public class M3
-{
-}
+public class M3;
 
 public class TopicRoutingTester
 {

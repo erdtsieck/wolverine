@@ -17,21 +17,41 @@ public class FromFileStrategy : IParameterStrategy
     {
         if (parameter.ParameterType == typeof(IFormFile))
         {
+            var existing = chain.ChainVariables.FirstOrDefault(x => x.VariableType == typeof(IFormFile));
+            if (existing != null)
+            {
+                variable = existing;
+                return true;
+            }
             chain.FileParameters.Add(parameter);
-            
+
             var frame = new FromFileValue(parameter);
-                chain.Middleware.Add(frame);
-                variable = frame.Variable;
-            return true;
-        } else if (parameter.ParameterType == typeof(IFormFileCollection))
-        {
-            chain.FileParameters.Add(parameter);
-            
-            var frame = new FromFileValues(parameter);
-                chain.Middleware.Add(frame);
-                variable = frame.Variable;
+            chain.Middleware.Add(frame);
+            variable = frame.Variable;
+            chain.ChainVariables.Add(variable);
+                
             return true;
         }
+
+        if (parameter.ParameterType == typeof(IFormFileCollection))
+        {
+            var existing = chain.ChainVariables.FirstOrDefault(x => x.VariableType == typeof(IFormFileCollection));
+            if (existing != null)
+            {
+                variable = existing;
+                return true;
+            }
+ 
+            chain.FileParameters.Add(parameter);
+
+            var frame = new FromFileValues(parameter);
+            chain.Middleware.Add(frame);
+            variable = frame.Variable;
+            chain.ChainVariables.Add(variable);
+            
+            return true;
+        }
+
         variable = null;
         return false;
     }

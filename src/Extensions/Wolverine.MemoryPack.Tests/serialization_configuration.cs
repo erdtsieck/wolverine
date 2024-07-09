@@ -4,7 +4,6 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.MemoryPack.Internal;
 using Wolverine.Runtime;
-using Wolverine.Util;
 using Xunit;
 
 namespace Wolverine.MemoryPack.Tests;
@@ -28,7 +27,6 @@ public class serialization_configuration
         root.Endpoints.EndpointFor("stub://two".ToUri())
             ?.DefaultSerializer.ShouldBeOfType<MemoryPackMessageSerializer>();
     }
-
 
     [Fact]
     public async Task can_override_the_serialization_on_just_one_endpoint()

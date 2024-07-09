@@ -1,7 +1,3 @@
-using Marten;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity;
-using Wolverine.Attributes;
 using WolverineWebApi;
 
 namespace Wolverine.Http.Tests;
@@ -22,6 +18,3 @@ public class using_empty_request_attribute : IntegrationContext
         });
     }
 }
-
-
-

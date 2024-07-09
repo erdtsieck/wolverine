@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using JasperFx.Core;
@@ -7,7 +8,6 @@ using Microsoft.AspNetCore.Http.Headers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Wolverine.Http.Runtime;
 using Wolverine.Http.Runtime.MultiTenancy;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
@@ -27,13 +27,13 @@ public abstract class HttpHandler
 
     public async ValueTask<string?> TryDetectTenantId(HttpContext httpContext)
     {
-        foreach (var strategy in _options.TenantIdDetection.Strategies)
+        var tenantId = await _options.TryDetectTenantId(httpContext);
+        if (tenantId != null)
         {
-            var tenantId = await strategy.DetectTenant(httpContext);
-            if (tenantId.IsNotEmpty()) return tenantId;
+            Activity.Current?.SetTag(MetricsConstants.TenantIdKey, tenantId);
         }
 
-        return null;
+        return tenantId;
     }
 
     public Task WriteTenantIdNotFound(HttpContext context)
@@ -137,13 +137,13 @@ public abstract class HttpHandler
         {
             return true;
         }
-        
-        if (headers.Accept.Any(x => x.MediaType.HasValue && (x.MediaType.Value == "application/json" || x.MediaType.Value == "*/*" || x.MediaType.Value == "text/json")))
-        {
-            return true;
-        }
 
-        return false;
+        return headers.Accept
+            .Any(x => x.MediaType is
+            {
+                HasValue: true,
+                Value: "application/json" or "application/problem+json" or "*/*" or "text/json"
+            });
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -154,7 +154,7 @@ public abstract class HttpHandler
             context.Response.StatusCode = 404;
             return Task.CompletedTask;
         }
-        
+
         return context.Response.WriteAsJsonAsync(body, _jsonOptions, context.RequestAborted);
     }
 

@@ -77,7 +77,6 @@ public class DeliveryOptions
         if (DeliverBy.HasValue)
         {
             envelope.DeliverBy = DeliverBy;
-            envelope.Status = EnvelopeStatus.Scheduled;
         }
 
         if (ScheduledTime.HasValue)
@@ -125,8 +124,8 @@ public class DeliveryOptions
         if (GroupId.IsNotEmpty())
         {
             envelope.GroupId = GroupId;
-        }        
-        
+        }
+
         if (DeduplicationId.IsNotEmpty())
         {
             envelope.DeduplicationId = DeduplicationId;

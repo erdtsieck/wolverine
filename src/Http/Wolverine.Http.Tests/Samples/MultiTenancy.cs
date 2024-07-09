@@ -21,36 +21,40 @@ public static class MultiTenancy
         builder.Services
             .AddMarten(connectionString)
             .IntegrateWithWolverine();
-        
+
         builder.Host.UseWolverine(opts =>
         {
             opts.Policies.AutoApplyTransactions();
         });
 
         var app = builder.Build();
-        
+
         // Configure the WolverineHttpOptions
         app.MapWolverineEndpoints(opts =>
         {
             // The tenancy detection is fall through, so the first strategy
-            // that finds anything wins! 
-            
-            // Use the value of a named request header 
+            // that finds anything wins!
+
+            // Use the value of a named request header
             opts.TenantId.IsRequestHeaderValue("tenant");
-            
+
             // Detect the tenant id from an expected claim in the
             // current request's ClaimsPrincipal
             opts.TenantId.IsClaimTypeNamed("tenant");
-            
+
             // Use a query string value for the key 'tenant'
             opts.TenantId.IsQueryStringValue("tenant");
-            
+
             // Use a named route argument for the tenant id
             opts.TenantId.IsRouteArgumentNamed("tenant");
-            
+
             // Use the *first* sub domain name of the request Url
             // Note that this is very naive
             opts.TenantId.IsSubDomainName();
+            
+            // If the tenant id cannot be detected otherwise, fallback
+            // to a designated tenant id
+            opts.TenantId.DefaultIs("default_tenant");
 
         });
 
@@ -58,7 +62,6 @@ public static class MultiTenancy
 
         #endregion
     }
-
 
     public static void require_tenant(WebApplication app)
     {
@@ -84,8 +87,8 @@ public static class MultiTenancy
             // If your strategy does not need any IoC service
             // dependencies, just add it directly
             opts.TenantId.DetectWith(new MyCustomTenantDetection());
-            
-            
+
+
             // In this case, your detection type will be built by
             // the underlying IoC container for your application
             // No other registration is necessary here for the strategy

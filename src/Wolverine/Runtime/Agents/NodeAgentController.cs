@@ -1,5 +1,7 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Wolverine.Transports;
 
 namespace Wolverine.Runtime.Agents;
 
@@ -18,7 +20,7 @@ public partial class NodeAgentController
     private readonly INodeStateTracker _tracker;
 
     private ImHashMap<Uri, IAgent> _agents = ImHashMap<Uri, IAgent>.Empty;
-    
+
     // May be valuable later
     private DateTimeOffset? _lastAssignmentCheck;
 
@@ -40,9 +42,18 @@ public partial class NodeAgentController
             _agentFamilies[ExclusiveListenerFamily.SchemeName] = new ExclusiveListenerFamily(runtime);
         }
 
-        if (runtime is { Storage: IAgentFamily agentFamily, Options.Durability.DurabilityAgentEnabled: true })
+        if (runtime.Options.Durability.DurabilityAgentEnabled)
         {
-            _agentFamilies[agentFamily.Scheme] = agentFamily;
+            var family = _runtime.Storage.BuildAgentFamily(runtime);
+            if (family != null)
+            {
+                _agentFamilies[family.Scheme] = family;
+            }
+        }
+
+        foreach (var family in runtime.Options.Transports.OfType<IAgentFamilySource>().SelectMany(x => x.BuildAgentFamilySources(runtime)))
+        {
+            _agentFamilies[family.Scheme] = family;
         }
 
         _cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
@@ -50,7 +61,6 @@ public partial class NodeAgentController
     }
 
     public bool HasStartedInSoloMode { get; private set; }
-
 
     internal void AddHandlers(WolverineRuntime runtime)
     {
@@ -213,7 +223,6 @@ public partial class NodeAgentController
         }
     }
 
-
     public Uri[] AllRunningAgentUris()
     {
         return _agents.Enumerate().Select(x => x.Key).ToArray();
@@ -229,7 +238,6 @@ public partial class NodeAgentController
 
         _agents = ImHashMap<Uri, IAgent>.Empty;
     }
-
 }
 
 public class AgentStartingException : Exception

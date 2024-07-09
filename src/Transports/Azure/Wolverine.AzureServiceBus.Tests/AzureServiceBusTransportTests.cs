@@ -1,7 +1,5 @@
-using System;
 using Shouldly;
 using Wolverine.AzureServiceBus.Internal;
-using Wolverine.Configuration;
 using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests;
@@ -45,7 +43,6 @@ public class AzureServiceBusTransportTests
         transport.SystemQueuesEnabled.ShouldBeTrue();
     }
 
-    
     [Fact]
     public void return_all_endpoints_gets_dead_letter_queue_too()
     {

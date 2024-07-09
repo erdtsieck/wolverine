@@ -1,12 +1,9 @@
 using Alba;
 using IntegrationTests;
-using JasperFx.Core.Reflection;
-using Lamar;
 using Marten;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Refit;
-using Shouldly;
 using Wolverine.Marten;
 
 namespace Wolverine.Http.Tests.Bugs;
@@ -16,14 +13,14 @@ public class Bug_568_do_not_freak_out_over_Refit
     [Fact]
     public async Task compile_darnit()
     {
-        var builder = WebApplication.CreateBuilder(Array.Empty<string>());
+        var builder = WebApplication.CreateBuilder([]);
         builder.Services.AddScoped<IUserService, UserService>();
 
         builder.Services.AddMarten(Servers.PostgresConnectionString)
             .IntegrateWithWolverine();
-        
+
         builder.Services.AddRefitClient<ITestHttpClient>();
-        
+
         builder.Host.UseWolverine(opts =>
         {
             opts.Discovery.IncludeAssembly(GetType().Assembly);
@@ -33,7 +30,7 @@ public class Bug_568_do_not_freak_out_over_Refit
         {
             app.MapWolverineEndpoints();
         });
-        
+
         await host.Scenario(x =>
         {
             x.Post.Json(new Bug568Message1("Hey")).ToUrl("/refit1");

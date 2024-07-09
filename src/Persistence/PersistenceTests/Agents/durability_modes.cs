@@ -1,7 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using IntegrationTests;
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
@@ -39,7 +35,7 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
     {
         new DurabilitySettings().Mode.ShouldBe(DurabilityMode.Balanced);
     }
-    
+
     private static async Task dropSchema()
     {
         using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
@@ -52,7 +48,7 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
     {
         // clear out garbage nodes
         await dropSchema();
-        
+
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -64,7 +60,7 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
                 opts.Services.AddResourceSetupOnStartup();
 
                 opts.Durability.Mode = mode;
-                
+
                 configure?.Invoke(opts);
             }).StartAsync();
 
@@ -112,16 +108,16 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
         // verify that there's a persisted node
         var node = await runtime.Storage.Nodes.LoadNodeAsync(runtime.Options.UniqueNodeId, CancellationToken.None);
         node.ShouldNotBeNull();
-        
+
         // Should be leader and have all agents running
         var tracker = runtime.Tracker;
-        
+
         // All agents should be running here
         await _host.WaitUntilAssignmentsChangeTo(w =>
         {
             w.ExpectRunningAgents(_host, 12);
         }, 30.Seconds());
-        
+
         await tracker.WaitUntilAssumesLeadershipAsync(30.Seconds());
         tracker.Nodes.Count.ShouldBe(1);
 
@@ -153,25 +149,24 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
         // verify that there's NOT a persisted node
         var node = await runtime.Storage.Nodes.LoadNodeAsync(runtime.Options.UniqueNodeId, CancellationToken.None);
         node.ShouldBeNull();
-        
+
         // All agents should be running here
         await _host.WaitUntilAssignmentsChangeTo(w =>
         {
             w.ExpectRunningAgents(_host, 12);
         }, 30.Seconds());
-        
+
         // Deletes the current node on stop
         await stopAsync();
         (await runtime.Storage.Nodes.LoadNodeAsync(runtime.Options.UniqueNodeId, CancellationToken.None))
             .ShouldBeNull();
     }
-    
-    
+
     [Fact]
     public async Task start_in_serverless_mode()
     {
         var runtime = await withConfig(DurabilityMode.Serverless);
-        
+
         runtime.NodeController.ShouldBeNull();
 
         // Should NOT be listening on the control endpoint
@@ -179,7 +174,7 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
             .ActiveListeners()
             .Any(x => x.Uri == runtime.Options.Transports.NodeControlEndpoint.Uri)
             .ShouldBeFalse();
-        
+
         // Removes all local endpoints
         runtime.Endpoints.ActiveSendingAgents().Any(x => x.Destination.Scheme == TransportConstants.Local)
             .ShouldBeFalse();
@@ -192,7 +187,7 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
         var node = await runtime.Storage.Nodes.LoadNodeAsync(runtime.Options.UniqueNodeId, CancellationToken.None);
         node.ShouldBeNull();
     }
-    
+
     [Fact]
     public async Task start_in_mediator_mode()
     {
@@ -229,11 +224,9 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
     {
         var runtime = await withConfig(DurabilityMode.MediatorOnly, o => o.ListenAtPort(PortFinder.GetAvailablePort()));
         runtime.Endpoints.ActiveListeners().Any().ShouldBeFalse();
-        
+
         // Okay to have local queues
         var agents = runtime.Endpoints.ActiveSendingAgents().ToArray();
         agents.Any().ShouldBeFalse();
     }
-
-
 }

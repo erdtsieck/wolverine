@@ -1,6 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -15,7 +12,7 @@ namespace Wolverine.RabbitMQ.Tests.Internals;
 public class RabbitMqQueueTests
 {
     private readonly IModel theChannel = Substitute.For<IModel>();
-    private readonly IConnection theConnection = Substitute.For<IConnection>();
+    private readonly IConnectionMonitor theConnection = Substitute.For<IConnectionMonitor>();
 
     private readonly RabbitMqTransport theTransport = new();
 
@@ -35,7 +32,6 @@ public class RabbitMqQueueTests
         queue.AutoDelete.ShouldBeFalse();
         queue.Arguments.Any().ShouldBeFalse();
     }
-
 
     [Fact]
     public void set_time_to_live()
@@ -114,7 +110,6 @@ public class RabbitMqQueueTests
         theChannel.DidNotReceiveWithAnyArgs().QueueDeclare("foo", true, true, true, null);
         theChannel.DidNotReceiveWithAnyArgs().QueuePurge("foo");
     }
-
 
     [Fact]
     public async Task initialize_with_no_auto_provision_but_auto_purge_on_endpoint_only()

@@ -1,17 +1,14 @@
-﻿using System;
-using System.Diagnostics.Metrics;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
+﻿using System.Diagnostics.Metrics;
 using JasperFx.Core;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using TestingSupport;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Routing;
@@ -21,6 +18,30 @@ using Wolverine.Util;
 
 namespace CoreTests.Runtime;
 
+public class NullAgentFamily : IAgentFamily
+{
+    public string Scheme => "null";
+    public ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
+    {
+        return new ValueTask<IReadOnlyList<Uri>>(new List<Uri>());
+    }
+
+    public ValueTask<IAgent> BuildAgentAsync(Uri uri, IWolverineRuntime wolverineRuntime)
+    {
+        throw new NotImplementedException();
+    }
+
+    public ValueTask<IReadOnlyList<Uri>> SupportedAgentsAsync()
+    {
+        return new ValueTask<IReadOnlyList<Uri>>(new List<Uri>());
+    }
+
+    public ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments)
+    {
+        return ValueTask.CompletedTask;
+    }
+}
+
 public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent>
 {
     public List<IWolverineEvent> ReceivedEvents { get; } = new();
@@ -28,6 +49,7 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
     public MockWolverineRuntime()
     {
         Tracker.Subscribe(this);
+        Storage.BuildAgentFamily(this).Returns(new NullAgentFamily());
     }
 
     public IMessageTracker MessageTracking { get; } = Substitute.For<IMessageTracker>();
@@ -70,10 +92,12 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
         throw new NotImplementedException();
     }
 
-    public CancellationToken Cancellation { get; } = default;
+    public CancellationToken Cancellation => default;
 
     public IMessageStore Storage { get; } = Substitute.For<IMessageStore>();
     public ILogger Logger { get; } = Substitute.For<ILogger>();
+
+    public IReadOnlyList<IAncillaryMessageStore> AncillaryStores { get;  } = new List<IAncillaryMessageStore>();
 
     public void ScheduleLocalExecutionInMemory(DateTimeOffset executionTime, Envelope envelope)
     {
@@ -92,7 +116,6 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
 
     public void AssertHasStarted()
     {
-
     }
 
     public IAgentRuntime Agents { get; } = Substitute.For<IAgentRuntime>();
@@ -143,7 +166,6 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
         return new MessageContext(this);
     }
 
-
     public void AddListener(Endpoint endpoint, IListener agent)
     {
     }
@@ -157,7 +179,6 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
     {
         throw new NotImplementedException();
     }
-
 
     public void Dispose()
     {

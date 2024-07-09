@@ -1,11 +1,9 @@
 ﻿using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
-using JasperFx.Core.Reflection;
 using Marten;
 using Wolverine.Configuration;
 using Wolverine.Marten.Publishing;
-using Wolverine.Persistence.Sagas;
 
 namespace Wolverine.Marten.Codegen;
 
@@ -66,5 +64,4 @@ internal class TransactionalFrame : Frame
 
         Next?.GenerateCode(method, writer);
     }
-
 }

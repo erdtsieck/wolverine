@@ -6,10 +6,7 @@ namespace TodoWebService;
 
 public record CreateTodoListRequest(string Title);
 
-public class TodoList
-{
-    
-}
+public class TodoList;
 
 public record TodoListCreated(Guid ListId, string Title);
 
@@ -27,7 +24,7 @@ public static class TodoListEndpoint
         var listId = CombGuidIdGeneration.NewGuid();
         var result = new TodoListCreated(listId, request.Title);
         var startStream = MartenOps.StartStream<TodoList>(listId, result);
-       
+
         return (new TodoCreationResponse(listId), startStream);
     }
 }

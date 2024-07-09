@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -48,7 +45,7 @@ public class FakeTransport : BrokerTransport<FakeEndpoint>
 
     public override string SanitizeIdentifier(string identifier)
     {
-        return identifier.Replace("#", ".");
+        return identifier.Replace('#', '.');
     }
 
     protected override IEnumerable<FakeEndpoint> endpoints()

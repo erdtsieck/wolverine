@@ -4,7 +4,6 @@ using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Runtime;
-using Wolverine.Util;
 using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests.Internals;
@@ -17,7 +16,6 @@ public class RabbitMqEndpointTests
         var endpoint = new RabbitMqQueue("foo", new RabbitMqTransport());
         endpoint.RoutingType.ShouldBe(RoutingMode.Static);
     }
-
 
     [Fact]
     public void override_the_prefetch_count()
@@ -66,7 +64,6 @@ public class RabbitMqEndpointTests
 
         endpoint.PreFetchCount.ShouldBe((ushort)100);
     }
-
 
     [Fact]
     public void map_to_rabbit_mq_uri_with_queue()

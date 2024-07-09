@@ -10,7 +10,6 @@ using TestingSupport;
 using Weasel.Postgresql;
 using Wolverine.Logging;
 using Wolverine.Postgresql;
-using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
 using Xunit;
@@ -47,7 +46,7 @@ public class leader_election : RabbitMQContext,IAsyncLifetime
         var host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
             opts.Durability.HealthCheckPollingTime = 1.Seconds();
-                
+
             opts.Services.AddSingleton<IAgentFamily, FakeAgentFamily>();
             opts.UseRabbitMq().EnableWolverineControlQueues();
             opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "registry");
@@ -113,7 +112,6 @@ public class leader_election : RabbitMQContext,IAsyncLifetime
             w.ExpectRunningAgents(host2, 6);
         }, 10.Seconds());
     }
-
 
     /***** NEW TESTS END HERE **********************************************/
 
@@ -212,7 +210,7 @@ public class leader_election : RabbitMQContext,IAsyncLifetime
             w.ExpectRunningAgents(host4, 4);
         }, 30.Seconds());
     }
-    
+
     [Fact]
     public async Task spin_up_several_nodes_take_away_non_leader_node()
     {
@@ -260,7 +258,7 @@ public class leader_election : RabbitMQContext,IAsyncLifetime
 
         // This should eventually turn back on the missing agents from node4
         await _originalHost.InvokeMessageAndWaitAsync(new VerifyAssignments());
-        
+
         await _originalHost.WaitUntilAssignmentsChangeTo(w =>
         {
             w.ExpectRunningAgents(_originalHost, 3);
@@ -269,7 +267,7 @@ public class leader_election : RabbitMQContext,IAsyncLifetime
             w.ExpectRunningAgents(host4, 3);
         }, 30.Seconds());
     }
-    
+
     [Fact]
     public async Task eject_a_stale_node()
     {
@@ -294,7 +292,7 @@ public class leader_election : RabbitMQContext,IAsyncLifetime
         await runtime4.DisableAgentsAsync(DateTimeOffset.UtcNow.AddHours(-1));
 
         await _originalHost.InvokeMessageAndWaitAsync(new CheckAgentHealth());
-        
+
         await _originalHost.WaitUntilAssignmentsChangeTo(w =>
         {
             w.ExpectRunningAgents(_originalHost, 4);
@@ -302,8 +300,7 @@ public class leader_election : RabbitMQContext,IAsyncLifetime
             w.ExpectRunningAgents(host3, 4);
         }, 30.Seconds());
     }
-    
-        
+
     [Fact]
     public async Task take_over_leader_ship_if_leader_becomes_stale()
     {
@@ -324,12 +321,12 @@ public class leader_election : RabbitMQContext,IAsyncLifetime
         }, 30.Seconds());
 
         await _originalHost.GetRuntime().DisableAgentsAsync(DateTimeOffset.UtcNow.AddHours(-1));
-        
+
         var runtime2 = host2.GetRuntime();
         await host2.InvokeMessageAndWaitAsync(new CheckAgentHealth());
         await runtime2.Tracker.WaitUntilAssumesLeadershipAsync(15.Seconds());
 
-        
+
         await host2.WaitUntilAssignmentsChangeTo(w =>
         {
             w.ExpectRunningAgents(host2, 4);
@@ -337,7 +334,7 @@ public class leader_election : RabbitMQContext,IAsyncLifetime
             w.ExpectRunningAgents(host4, 4);
         }, 30.Seconds());
     }
-    
+
     [Fact]
     public async Task persist_and_load_node_records()
     {
@@ -384,6 +381,3 @@ public class leader_election : RabbitMQContext,IAsyncLifetime
         throw new Exception("No persisted node records!");
     }
 }
-
-
-

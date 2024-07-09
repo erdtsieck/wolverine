@@ -1,7 +1,4 @@
-﻿using System;
-using System.Reflection;
-using JasperFx.Core.Reflection;
-using Wolverine.Runtime.Handlers;
+﻿using Wolverine.Runtime.Handlers;
 using Xunit;
 
 namespace CoreTests.Runtime.Handlers;
@@ -28,7 +25,6 @@ public class HandlerCallTester
         handler.CouldHandleOtherMessageType(typeof(Input)).ShouldBeFalse();
     }
 
-
     [Fact]
     public void throws_chunks_if_you_try_to_use_a_method_with_no_inputs()
     {
@@ -49,41 +45,23 @@ public class HandlerCallTester
         bool ReturnsValueType(Input input);
     }
 
-    public interface ISomeService
-    {
-    }
+    public interface ISomeService;
 
-    public class Input
-    {
-    }
+    public class Input;
 
-    public class DifferentInput
-    {
-    }
+    public class DifferentInput;
 
-    public class SpecialInput : Input
-    {
-    }
+    public class SpecialInput : Input;
 
-    public class Output
-    {
-    }
+    public class Output;
 
-    public interface IInput
-    {
-    }
+    public interface IInput;
 
-    public abstract class InputBase
-    {
-    }
+    public abstract class InputBase;
 
-    public class Input1 : InputBase, IInput
-    {
-    }
+    public class Input1 : InputBase, IInput;
 
-    public class Input2
-    {
-    }
+    public class Input2;
 
     public class SomeHandler
     {

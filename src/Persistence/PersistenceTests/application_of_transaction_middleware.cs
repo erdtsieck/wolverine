@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using IntegrationTests;
 using Lamar;
 using Marten;
@@ -33,7 +31,7 @@ public class application_of_transaction_middleware : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
             opts.Durability.DurabilityAgentEnabled = false;
-            
+
             opts.Services.AddMarten(Servers.PostgresConnectionString);
             opts.Services.AddDbContextWithWolverineIntegration<SampleDbContext>(x =>
                 x.UseSqlServer(Servers.SqlServerConnectionString));
@@ -134,9 +132,7 @@ public class T5Handler
     }
 }
 
-public interface ISomeService
-{
-}
+public interface ISomeService;
 
 public class SomeService : ISomeService
 {

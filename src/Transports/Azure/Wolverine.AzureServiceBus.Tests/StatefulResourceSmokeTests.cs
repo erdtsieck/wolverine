@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Oakton;
@@ -34,7 +33,7 @@ public class StatefulResourceSmokeTests
 
                 opts.PublishMessage<SRMessage3>()
                     .ToAzureServiceBusQueue("sr" + starting++);
-                
+
                 opts.ListenToAzureServiceBusSubscription("subscription1").FromTopic("topic1");
 
                 opts.PublishMessage<SRMessage4>().ToAzureServiceBusTopic("sr" + starting++);
@@ -48,7 +47,6 @@ public class StatefulResourceSmokeTests
             .RunOaktonCommands(["resources", "setup"]);
         result.ShouldBe(0);
     }
-
 
     [Fact]
     public async Task statistics()
@@ -104,21 +102,13 @@ public class StatefulResourceSmokeTests
     }
 }
 
-public class SRMessage1
-{
-}
+public class SRMessage1;
 
-public class SRMessage2
-{
-}
+public class SRMessage2;
 
-public class SRMessage3
-{
-}
+public class SRMessage3;
 
-public class SRMessage4
-{
-}
+public class SRMessage4;
 
 public class SRMessageHandlers
 {

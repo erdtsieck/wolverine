@@ -1,6 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using NSubstitute;
 using Wolverine.ErrorHandling;
@@ -142,7 +139,6 @@ public class CircuitBreakerTests
         generation.Failures.ShouldBe(1);
         generation.Total.ShouldBe(10);
     }
-
 
     [Fact]
     public async Task first_totals_update_with_failures_but_not_met_threshold()

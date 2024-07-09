@@ -43,7 +43,7 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
 
         await Sender.StopAsync();
         Sender.Dispose();
-        
+
         if (Receiver != null)
         {
             if (!ReferenceEquals(Sender, Receiver))
@@ -101,7 +101,7 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
 
         options.Services.AddSingleton<IMessageSerializer, GreenTextWriter>();
         //options.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-        
+
         options.Durability.Mode = DurabilityMode.Solo;
 
         options.UseNewtonsoftForSerialization();
@@ -267,7 +267,6 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .ShouldNotBeNull();
     }
 
-
     [Fact]
     public async Task can_stop_receiving_when_too_busy_and_restart_listeners()
     {
@@ -289,12 +288,13 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
 
             listener.Status.ShouldBe(ListeningStatus.Accepting);
         }
-        
+
         // I FEEL DIRTY
         await Task.Delay(5.Seconds());
 
         var session = await theSender.TrackActivity(Fixture.DefaultTimeout)
             .AlsoTrack(theReceiver)
+            .Timeout(30.Seconds())
             .DoNotAssertOnExceptionsDetected()
             .ExecuteAndWaitAsync(c => c.EndpointFor(theOutboundAddress).SendAsync(new Message1()));
 
@@ -302,7 +302,6 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         session.FindSingleTrackedMessageOfType<Message1>(MessageEventType.MessageSucceeded)
             .ShouldNotBeNull();
     }
-
 
     [Fact]
     public async Task can_send_from_one_node_to_another_by_publishing_rule()
@@ -401,7 +400,6 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         message.Name.ShouldBe("Orange");
     }
 
-
     protected void throwOnAttempt<T>(int attempt) where T : Exception, new()
     {
         theMessage.Errors.Add(attempt, new T());
@@ -437,7 +435,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
                     x.MessageEventType == MessageEventType.MovedToErrorQueue);
 
             if (record is null) return false;
-            
+
             if (record.MessageEventType == MessageEventType.MessageSucceeded && record.AttemptNumber == attempt)
             {
                 return true;
@@ -486,7 +484,6 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         throw new Exception(writer.ToString());
     }
 
-
     [Fact]
     public virtual async Task will_move_to_dead_letter_queue_without_any_exception_match()
     {
@@ -507,7 +504,6 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         await shouldMoveToErrorQueueOnAttempt(1);
     }
 
-
     [Fact]
     public virtual async Task will_requeue_and_increment_attempts()
     {
@@ -524,7 +520,6 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
 
         await shouldSucceedOnAttempt(2);
     }
-
 
     [Fact]
     public async Task explicit_respond_to_sender()
@@ -599,7 +594,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
 
 public class BlueTextReader : IMessageSerializer
 {
-    public string ContentType { get; } = "text/plain";
+    public string ContentType => "text/plain";
 
     public byte[] Write(Envelope envelope)
     {
@@ -629,7 +624,7 @@ public class BlueTextReader : IMessageSerializer
 
 public class GreenTextWriter : IMessageSerializer
 {
-    public string? ContentType { get; } = "text/plain";
+    public string? ContentType => "text/plain";
 
     public object ReadFromData(Type messageType, Envelope envelope)
     {

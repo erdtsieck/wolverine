@@ -12,11 +12,6 @@ using Wolverine.Transports;
 
 namespace Wolverine.RDBMS;
 
-internal class ScheduledJobAgent
-{
-    
-}
-
 internal class DurabilityAgent : IAgent
 {
     internal const string AgentScheme = "wolverinedb";
@@ -67,12 +62,22 @@ internal class DurabilityAgent : IAgent
         });
     }
 
+    public static Uri SimplifyUri(Uri uri)
+    {
+        return new Uri($"{DurabilityAgent.AgentScheme}://{uri.Host}");
+    }
+
+    public static Uri AddMarkerType(Uri uri, Type markerType)
+    {
+        return new Uri($"{uri}{markerType.Name}");
+    }
+
     public bool AutoStartScheduledJobPolling { get; set; } = false;
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
         var recoveryStart = _settings.ScheduledJobFirstExecution.Add(new Random().Next(0, 1000).Milliseconds());
-        
+
         _recoveryTimer = new Timer(_ =>
         {
             var operations = new IDatabaseOperation[]
@@ -128,5 +133,5 @@ internal class DurabilityAgent : IAgent
         }
     }
 
-    public Uri Uri { get; }
+    public Uri Uri { get; internal set; }
 }

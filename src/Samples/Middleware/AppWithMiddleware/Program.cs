@@ -5,10 +5,8 @@ using Marten;
 using Oakton;
 using Oakton.Resources;
 using Wolverine;
-using Wolverine.Attributes;
 using Wolverine.FluentValidation;
 using Wolverine.Marten;
-using Wolverine.RabbitMQ;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,18 +26,16 @@ builder.Services.AddMarten(opts =>
     // transactional middleware, saga persistence we don't care about
     // yet
     .IntegrateWithWolverine();
-    
-
 
 #region sample_registering_middleware_by_message_type
 
 builder.Host.UseWolverine(opts =>
 {
-    // This middleware should be applied to all handlers where the 
+    // This middleware should be applied to all handlers where the
     // command type implements the IAccountCommand interface that is the
     // "detected" message type of the middleware
     opts.Policies.ForMessagesOfType<IAccountCommand>().AddMiddleware(typeof(AccountLookupMiddleware));
-    
+
     opts.UseFluentValidation();
 
     // Explicit routing for the AccountUpdated
@@ -50,7 +46,7 @@ builder.Host.UseWolverine(opts =>
         // Throw the message away if it's not successfully
         // delivered within 10 seconds
         .DeliverWithin(10.Seconds())
-        
+
         // Not durable
         .BufferedInMemory();
 });

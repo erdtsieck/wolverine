@@ -1,11 +1,8 @@
-﻿using System.Linq;
-using System.Threading.Tasks;
-using JasperFx.Core;
+﻿using JasperFx.Core;
 using TestingSupport;
 using TestingSupport.Compliance;
 using Wolverine.Runtime.Routing;
 using Wolverine.Tracking;
-using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Acceptance;
@@ -62,7 +59,6 @@ public class publish_versus_send_mechanics : IntegrationContext
         await Should.ThrowAsync<IndeterminateRoutesException>(async () =>
             await Publisher.SendAsync(new Message3()));
     }
-
 
     [Fact]
     public async Task send_with_known_subscribers()

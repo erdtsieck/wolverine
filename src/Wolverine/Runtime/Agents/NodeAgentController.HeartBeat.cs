@@ -9,7 +9,7 @@ public record CheckAgentHealth : IAgentCommand, ISerializable
 
     public byte[] Write()
     {
-        return Array.Empty<byte>();
+        return [];
     }
 
     public static object Read(byte[] bytes)
@@ -29,7 +29,7 @@ public record CheckAgentHealth : IAgentCommand, ISerializable
  
  */
 
-public partial class NodeAgentController 
+public partial class NodeAgentController
 {
     public async Task<AgentCommands> DoHealthChecksAsync()
     {
@@ -52,12 +52,12 @@ public partial class NodeAgentController
         var staleTime = DateTimeOffset.UtcNow.Subtract(_runtime.Options.Durability.StaleNodeTimeout);
         var staleNodes = nodes.Where(x => x.LastHealthCheck < staleTime).ToArray();
         nodes = nodes.Where(x => !staleNodes.Contains(x)).ToList();
-        
-        
+
+        // Do it no matter what
+        await ejectStaleNodes(staleNodes);
+
         if (_tracker.Self.IsLeader())
         {
-            await ejectStaleNodes(staleNodes);
-
             // TODO -- do the verification here too!
             return await EvaluateAssignmentsAsync(nodes);
         }
@@ -67,12 +67,8 @@ public partial class NodeAgentController
 
     private async Task<AgentCommands> tryElectNewLeaderIfNecessary(IReadOnlyList<WolverineNode> staleNodes)
     {
-        var leaderNode = staleNodes.FirstOrDefault(x => x.Id == _tracker.Leader?.Id);
-        if (leaderNode != null)
-        {
-            await _persistence.DeleteAsync(leaderNode.Id);
-            _tracker.Remove(leaderNode);
-        }
+        // Clean out the dormant nodes first!!!
+        await ejectStaleNodes(staleNodes);
 
         // If there is no known leader, try to elect a newer one
         if (_tracker.Leader == null)
@@ -88,10 +84,9 @@ public partial class NodeAgentController
             // Ask another, older node to take leadership
             return [new TryAssumeLeadership(){CandidateId = candidate.Id}];
         }
-        
+
         return AgentCommands.Empty;
     }
-
 
     private async Task ejectStaleNodes(IReadOnlyList<WolverineNode> staleNodes)
     {

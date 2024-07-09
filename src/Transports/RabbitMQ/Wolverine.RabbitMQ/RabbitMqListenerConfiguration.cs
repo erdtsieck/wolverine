@@ -1,4 +1,3 @@
-using System;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.RabbitMQ.Internal;
@@ -32,7 +31,6 @@ public class RabbitMqListenerConfiguration : ListenerConfiguration<RabbitMqListe
 
         return this;
     }
-    
 
     /// <summary>
     ///     Override the Rabbit MQ PreFetchCount value for just this endpoint for how many
@@ -114,11 +112,10 @@ public class RabbitMqListenerConfiguration : ListenerConfiguration<RabbitMqListe
         {
             e.DeadLetterQueue = dlq;
         });
-        
+
         return this;
     }
 
-    
     /// <summary>
     /// Remove all dead letter queueing declarations from this queue
     /// </summary>
@@ -129,9 +126,7 @@ public class RabbitMqListenerConfiguration : ListenerConfiguration<RabbitMqListe
         {
             e.DeadLetterQueue = null;
         });
-        
+
         return this;
     }
-    
-    
 }

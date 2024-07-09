@@ -1,5 +1,4 @@
-﻿using System.Threading.Tasks;
-using Wolverine.Runtime.Routing;
+﻿using Wolverine.Runtime.Routing;
 using Xunit;
 
 namespace CoreTests.Acceptance;
@@ -20,6 +19,4 @@ public class no_available_route_behavior : IntegrationContext
     }
 }
 
-public class MessageWithNoRoutes
-{
-}
+public class MessageWithNoRoutes;

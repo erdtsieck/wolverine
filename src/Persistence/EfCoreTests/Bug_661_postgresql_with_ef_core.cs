@@ -8,7 +8,7 @@ using Wolverine.Postgresql;
 
 namespace EfCoreTests;
 
-public class Bug_661_postgresql_with_ef_core 
+public class Bug_661_postgresql_with_ef_core
 {
 #if NET8_0_OR_GREATER
     [Fact]
@@ -17,13 +17,10 @@ public class Bug_661_postgresql_with_ef_core
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString!);
+                opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString);
                 opts.Services.AddResourceSetupOnStartup();
                 opts.Services.AddDbContext<AppDbContext>(opt => opt.UseNpgsql(Servers.PostgresConnectionString));
             }).StartAsync();
-
-
-        
     }
 #endif
 }

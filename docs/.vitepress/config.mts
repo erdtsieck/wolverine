@@ -150,6 +150,7 @@ export default withMermaid( {
                                     ]},
                                 {text: 'TCP', link: '/guide/messaging/transports/tcp'},
                                 {text: 'Sql Server', link: '/guide/messaging/transports/sqlserver'},
+                                {text: 'PostgreSQL', link: '/guide/messaging/transports/postgresql'},
                                 {text: 'MQTT', link: '/guide/messaging/transports/mqtt'},
                                 {text: 'Kafka', link: '/guide/messaging/transports/kafka'}
                             ]
@@ -203,9 +204,11 @@ export default withMermaid( {
                                 {text: 'Event Forwarding to Wolverine', link: '/guide/durability/marten/event-forwarding'},
                                 {text: 'Event Subscriptions', link: '/guide/durability/marten/subscriptions'},
                                 {text: 'Sagas', link: '/guide/durability/marten/sagas'},
-                                {text: 'Multi-Tenancy and Marten', link: '/guide/durability/marten/multi-tenancy'}
+                                {text: 'Multi-Tenancy and Marten', link: '/guide/durability/marten/multi-tenancy'},
+                                {text: 'Ancillary Marten Stores', link: '/guide/durability/marten/ancillary-stores'}
                             ]},
                         {text: 'Sql Server Integration', link: '/guide/durability/sqlserver'},
+                        {text: 'PostgreSQL Integration', link: '/guide/durability/postgresql'},
                         {text: 'Entity Framework Core Integration', link: '/guide/durability/efcore'},
                         {text: 'Managing Message Storage', link: '/guide/durability/managing'},
                         {text: 'Dead Letter Storage', link: '/guide/durability/dead-letter-storage'},

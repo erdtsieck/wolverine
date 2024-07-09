@@ -1,15 +1,11 @@
-using System.Diagnostics;
 using Alba;
 using IntegrationTests;
 using Marten;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Wolverine.Attributes;
 using Wolverine.Marten;
-using Wolverine.Postgresql;
-using Wolverine.Runtime;
 using Wolverine.Tracking;
 
 namespace Wolverine.Http.Tests.Bugs;
@@ -20,7 +16,7 @@ public class Bug_772_Saga_codegen
     public async Task can_compile_without_issue()
     {
         // Arrange -- and sorry, it's a bit of "Arrange" to get an IHost
-        var builder = WebApplication.CreateBuilder(Array.Empty<string>());
+        var builder = WebApplication.CreateBuilder([]);
 
         builder.Services
             .AddMarten(options =>
@@ -33,7 +29,7 @@ public class Bug_772_Saga_codegen
         builder.Host.UseWolverine(options =>
         {
             options.Discovery.IncludeAssembly(GetType().Assembly);
-            
+
             options.Policies.AutoApplyTransactions();
             options.Policies.UseDurableLocalQueues();
             options.Policies.UseDurableOutboxOnAllSendingEndpoints();
@@ -49,15 +45,15 @@ public class Bug_772_Saga_codegen
 
         // Finally, the "Act"!
         var originalMessage = new BeginProcess(Guid.NewGuid());
-        
+
         // This is a built in extension method to Wolverine to "wait" until
         // all activity triggered by this operation is completed
         var tracked = await host.InvokeMessageAndWaitAsync(originalMessage);
-        
+
         // And now it's okay to do assertions....
         // This would have failed if there was 0 or many ContinueProcess messages
         var continueMessage = tracked.Executed.SingleMessage<ContinueProcess>();
-        
+
         continueMessage.DataId.ShouldBe(originalMessage.DataId);
 
     }
@@ -93,7 +89,7 @@ public static class BeginProcessMiddleware
     {
         return await dataService.GetData(message.DataId);
     }
-    
+
     public static void Finally()
     {
         // ...
@@ -103,7 +99,7 @@ public static class BeginProcessMiddleware
 public class LongProcessSaga : Saga
 {
     public Guid Id { get; init; }
-    
+
     [Middleware(typeof(BeginProcessMiddleware))]
     public static (LongProcessSaga, OutgoingMessages) Start(BeginProcess message, RecordData? sourceData = null)
     {

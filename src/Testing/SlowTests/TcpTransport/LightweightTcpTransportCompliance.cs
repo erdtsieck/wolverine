@@ -2,7 +2,6 @@ using JasperFx.Core;
 using TestingSupport;
 using TestingSupport.Compliance;
 using Wolverine.Transports.Tcp;
-using Wolverine.Util;
 using Xunit;
 
 namespace SlowTests.TcpTransport;
@@ -27,6 +26,4 @@ public class LightweightTcpFixture : TransportComplianceFixture, IAsyncLifetime
 }
 
 [Collection("compliance")]
-public class LightweightTcpTransportCompliance : TransportCompliance<LightweightTcpFixture>
-{
-}
+public class LightweightTcpTransportCompliance : TransportCompliance<LightweightTcpFixture>;

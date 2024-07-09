@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TestingSupport;
@@ -50,18 +48,10 @@ public class InMemorySagaHost : ISagaHost
     }
 }
 
-public class basic_mechanics_with_guid : GuidIdentifiedSagaComplianceSpecs<InMemorySagaHost>
-{
-}
+public class basic_mechanics_with_guid : GuidIdentifiedSagaComplianceSpecs<InMemorySagaHost>;
 
-public class basic_mechanics_with_int : IntIdentifiedSagaComplianceSpecs<InMemorySagaHost>
-{
-}
+public class basic_mechanics_with_int : IntIdentifiedSagaComplianceSpecs<InMemorySagaHost>;
 
-public class basic_mechanics_with_long : LongIdentifiedSagaComplianceSpecs<InMemorySagaHost>
-{
-}
+public class basic_mechanics_with_long : LongIdentifiedSagaComplianceSpecs<InMemorySagaHost>;
 
-public class basic_mechanics_with_string : StringIdentifiedSagaComplianceSpecs<InMemorySagaHost>
-{
-}
+public class basic_mechanics_with_string : StringIdentifiedSagaComplianceSpecs<InMemorySagaHost>;

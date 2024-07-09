@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.Json;
@@ -49,6 +46,8 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public static readonly Variable[] HttpContextVariables =
         Variable.VariablesForProperties<HttpContext>(HttpGraph.Context);
 
+    internal Variable? RequestBodyVariable { get; set; }
+
     private string? _fileName;
     private readonly List<string> _httpMethods = [];
 
@@ -59,7 +58,6 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     private readonly List<QuerystringVariable> _querystringVariables = [];
 
     public string OperationId { get; set; }
-    
 
     // Make the assumption that the route argument has to match the parameter name
     private GeneratedType? _generatedType;
@@ -86,15 +84,20 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             NoContent = true;
             ResourceType = typeof(void);
         }
-        
+
         Metadata = new RouteHandlerBuilder(new[] { this });
-        
+
         if (method.Method.TryGetAttribute<WolverineHttpMethodAttribute>(out var att))
         {
             MapToRoute(att.HttpMethod, att.Template, att.Order);
             if (att.Name.IsNotEmpty())
             {
                 DisplayName = att.Name;
+            }
+
+            if (att.RouteName.IsNotEmpty())
+            {
+                RouteName = att.RouteName;
             }
 
             if (att.OperationId.IsNotEmpty())
@@ -111,9 +114,14 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         // Add Before/After methods from the current handler
         applyImpliedMiddlewareFromHandlers(_parent.Rules);
 
+        foreach (var call in Middleware.OfType<MethodCall>().ToArray())
+        {
+            parent.ApplyParameterMatching(this, call);
+        }
+
         applyMetadata();
     }
-    
+
     private bool tryFindResourceType(MethodCall method, out Type resourceType)
     {
         resourceType = typeof(void);
@@ -129,7 +137,6 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             return false;
         }
 
-
         var responseBody = method.Creates.First();
 
         resourceType = responseBody.VariableType;
@@ -140,8 +147,10 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public MethodCall Method { get; }
 
-    public string? DisplayName { get; set; }
+    public string? RouteName { get; set; }
 
+    public string? DisplayName { get; set; }
+    
     public int Order { get; set; }
 
     public IEnumerable<string> HttpMethods => _httpMethods;
@@ -167,6 +176,10 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         _description = _fileName;
 
         _parent.ApplyParameterMatching(this);
+
+        // Doing this prevents middleware policies
+        // from doing something stupid
+        RequestType ??= typeof(void);
     }
 
     public RoutePattern? RoutePattern { get; private set; }
@@ -181,7 +194,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             {
                 applyAuditAttributes(_requestType);
             }
-        } 
+        }
     }
 
     public override string Description => _description;
@@ -192,7 +205,6 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     /// Required TenancyMode for this http chain
     /// </summary>
     public TenancyMode? TenancyMode { get; set; }
-
 
     public static HttpChain ChainFor<T>(Expression<Action<T>> expression, HttpGraph? parent = null)
     {
@@ -239,7 +251,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public override Type? InputType()
     {
-        return RequestType;
+        return HasRequestType ? RequestType : null;
     }
 
     public override string ToString()
@@ -268,7 +280,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             .WithMetadata(new HttpMethodMetadata(_httpMethods));
             //.WithMetadata(Method.Method);
 
-        if (RequestType != null)
+        if (HasRequestType)
         {
             Metadata.Accepts(RequestType, false, "application/json");
         }
@@ -377,7 +389,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         {
             if (variableType == typeof(string))
             {
-                variable = new ReadStringRouteValue(routeOrParameterName!).Variable;
+                variable = new ReadStringRouteValue(routeOrParameterName).Variable;
                 _routeVariables.Add(variable);
                 return true;
             }
@@ -394,7 +406,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         return false;
 
     }
-    
+
     private readonly List<HeaderValueVariable> _headerVariables = [];
 
     public HeaderValueVariable GetOrCreateHeaderVariable(IFromHeaderMetadata metadata, ParameterInfo parameter)
@@ -423,4 +435,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     string IEndpointSummaryMetadata.Summary => ToString();
 
     public List<ParameterInfo> FileParameters { get; } = [];
+
+    [MemberNotNullWhen(true, nameof(RequestType))]
+    public bool HasRequestType => RequestType != null && RequestType != typeof(void);
 }

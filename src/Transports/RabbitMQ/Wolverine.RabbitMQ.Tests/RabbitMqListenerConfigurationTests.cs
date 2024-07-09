@@ -1,6 +1,5 @@
 using NSubstitute;
 using Shouldly;
-using Wolverine.Configuration;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Runtime;
 using Xunit;
@@ -33,13 +32,12 @@ public class RabbitMqListenerConfigurationTests
 
         var theMapper = new SpecialMapper();
         expression.UseInterop(theMapper);
-        
+
         var wolverineRuntime = Substitute.For<IWolverineRuntime>();
         wolverineRuntime.Options.Returns(new WolverineOptions());
 
         endpoint.Compile(wolverineRuntime);
-        
+
         endpoint.BuildMapper(wolverineRuntime).ShouldBeSameAs(theMapper);
     }
-
 }

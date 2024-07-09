@@ -13,9 +13,7 @@ using Wolverine.ErrorHandling;
 using Wolverine.Marten;
 using Wolverine.Tracking;
 using Wolverine.Transports;
-using Wolverine.Transports.Local;
 using Wolverine.Transports.Tcp;
-using Wolverine.Util;
 
 namespace CircuitBreakingTests;
 
@@ -35,12 +33,12 @@ public class stopping_and_starting_listeners : IDisposable
         theListener = WolverineHost.For(opts =>
         {
             opts.Durability.Mode = DurabilityMode.Solo;
-            
+
             opts.Services.AddMarten(Servers.PostgresConnectionString)
                 .IntegrateWithWolverine();
 
             opts.Services.AddResourceSetupOnStartup();
-            
+
             opts.ListenAtPort(_port1).Named("one");
             opts.ListenAtPort(_port2).Named("two");
             opts.ListenAtPort(_port3).Named("three");
@@ -207,7 +205,7 @@ public class stopping_and_starting_listeners : IDisposable
 
         agent.Status.ShouldBe(ListeningStatus.Accepting);
     }
-    
+
     [Fact]
     public async Task pause_local_listener_on_matching_error_condition()
     {
@@ -226,7 +224,7 @@ public class stopping_and_starting_listeners : IDisposable
 
         var agent = (IListenerCircuit)runtime.Endpoints.AgentForLocalQueue("one");
         agent.Status.ShouldBe(ListeningStatus.TooBusy);
-        
+
         CanCauseErrorMessageHandler.Handled.ShouldBe(1);
 
         // should restart
@@ -254,7 +252,7 @@ public class CanCauseErrorMessage
 public static class CanCauseErrorMessageHandler
 {
     public static int Handled = 0;
-    
+
     public static void Handle(CanCauseErrorMessage message, Envelope envelope)
     {
         Handled++;
@@ -266,9 +264,7 @@ public static class CanCauseErrorMessageHandler
     }
 }
 
-public class PausingMessage
-{
-}
+public class PausingMessage;
 
 public class PausingMessageHandler
 {

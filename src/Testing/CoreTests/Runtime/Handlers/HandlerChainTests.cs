@@ -1,10 +1,6 @@
-﻿using System.Linq;
-using JasperFx.CodeGeneration;
-using JasperFx.CodeGeneration.Frames;
-using Lamar;
+﻿using Lamar;
 using Microsoft.Extensions.Logging;
 using TestingSupport.Compliance;
-using Wolverine.Attributes;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 
@@ -26,7 +22,7 @@ public class HandlerChainTests
         var chain = HandlerChain.For<Target>(x => x.Go(null), null);
         chain.TelemetryEnabled.ShouldBeTrue();
     }
-    
+
     [Fact]
     public void create_by_method()
     {
@@ -75,6 +71,4 @@ public class HandlerChainTests
         {
         }
     }
-
-
 }

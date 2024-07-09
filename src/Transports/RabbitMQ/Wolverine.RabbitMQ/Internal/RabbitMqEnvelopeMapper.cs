@@ -1,5 +1,3 @@
-using System;
-using System.Diagnostics;
 using System.Text;
 using JasperFx.Core;
 using RabbitMQ.Client;
@@ -14,10 +12,7 @@ namespace Wolverine.RabbitMQ.Internal;
 /// Rabbit MQ IBasicProperties object. Custom implementations of this can be used
 /// to create interoperability with non-Wolverine applications through Rabbit MQ
 /// </summary>
-public interface IRabbitMqEnvelopeMapper : IEnvelopeMapper<IBasicProperties, IBasicProperties>
-{
-    
-}
+public interface IRabbitMqEnvelopeMapper : IEnvelopeMapper<IBasicProperties, IBasicProperties>;
 
 internal class RabbitMqEnvelopeMapper : EnvelopeMapper<IBasicProperties, IBasicProperties>, IRabbitMqEnvelopeMapper
 {
@@ -40,7 +35,7 @@ internal class RabbitMqEnvelopeMapper : EnvelopeMapper<IBasicProperties, IBasicP
                 e.Id = CombGuidIdGeneration.NewGuid();
             }
         };
-        
+
         MapProperty(x => x.Id, readId,
             (e, props) => props.MessageId = e.Id.ToString());
 
@@ -70,7 +65,7 @@ internal class RabbitMqEnvelopeMapper : EnvelopeMapper<IBasicProperties, IBasicP
             value = null;
             return false;
         }
-        
+
         if (incoming.Headers.TryGetValue(key, out var raw))
         {
             value = (raw is byte[] b ? Encoding.Default.GetString(b) : raw.ToString())!;

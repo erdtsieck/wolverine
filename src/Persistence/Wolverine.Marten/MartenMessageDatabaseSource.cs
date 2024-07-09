@@ -13,22 +13,39 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Marten;
 
+/// <summary>
+/// Built to support separate stores in Marten
+/// </summary>
+/// <typeparam name="T"></typeparam>
+internal class MartenMessageDatabaseSource<T> : MartenMessageDatabaseSource where T : IDocumentStore
+{
+    public MartenMessageDatabaseSource(string schemaName, AutoCreate autoCreate, T store, IWolverineRuntime runtime) : base(schemaName, autoCreate, store, runtime)
+    {
+    }
+}
+
 internal class MartenMessageDatabaseSource : IMessageDatabaseSource
 {
     private readonly string _schemaName;
+    private readonly AutoCreate _autoCreate;
     private readonly IDocumentStore _store;
     private readonly IWolverineRuntime _runtime;
     private ImHashMap<string, PostgresqlMessageStore> _stores = ImHashMap<string, PostgresqlMessageStore>.Empty;
     private ImHashMap<string, PostgresqlMessageStore> _databases = ImHashMap<string, PostgresqlMessageStore>.Empty;
     private readonly object _locker = new();
 
-    public MartenMessageDatabaseSource(string schemaName, IDocumentStore store, IWolverineRuntime runtime)
+    public MartenMessageDatabaseSource(
+        string schemaName, 
+        AutoCreate autoCreate,
+        IDocumentStore store, 
+        IWolverineRuntime runtime)
     {
         _schemaName = schemaName;
+        _autoCreate = autoCreate;
         _store = store;
         _runtime = runtime;
     }
-    
+
     public async ValueTask<IMessageDatabase> FindDatabaseAsync(string tenantId)
     {
         if (_stores.TryFind(tenantId, out var store)) return store;
@@ -46,7 +63,7 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
                     _stores = _stores.AddOrUpdate(tenantId, store);
                 }
             }
-            
+
             return store;
         }
 
@@ -67,13 +84,18 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
             _stores = _stores.AddOrUpdate(tenantId, store);
             _databases = _databases.AddOrUpdate(database.Identifier, store);
         }
-        
-        if (_store.Options.As<StoreOptions>().AutoCreateSchemaObjects != AutoCreate.None)
+
+        foreach (var configuration in _configurations)
         {
-            // TODO -- add some resiliency here
+            await configuration(store);
+        }
+
+        // TODO -- add some resiliency here
+        if (_autoCreate != AutoCreate.None)
+        {
             await store.Admin.MigrateAsync();
         }
-        
+
         return store;
     }
 
@@ -83,6 +105,7 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         {
             SchemaName = _schemaName,
             IsMaster = false,
+            AutoCreate = _autoCreate,
             CommandQueuesEnabled = false,
             DataSource = database.As<PostgresqlDatabase>().DataSource
         };
@@ -102,12 +125,11 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         foreach (var martenDatabase in martenDatabases)
         {
             var wolverineStore = createWolverineStore(martenDatabase);
-
-            if (martenDatabase.AutoCreate != AutoCreate.None)
+            if (_autoCreate != AutoCreate.None)
             {
                 await wolverineStore.MigrateAsync();
             }
-            
+
             _databases = _databases.AddOrUpdate(martenDatabase.Identifier, wolverineStore);
         }
     }
@@ -115,5 +137,17 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
     public IReadOnlyList<IMessageDatabase> AllActive()
     {
         return _databases.Enumerate().Select(x => x.Value).ToList();
+    }
+
+    private readonly List<Func<IMessageDatabase, ValueTask>> _configurations = new();
+
+    public async ValueTask ConfigureDatabaseAsync(Func<IMessageDatabase, ValueTask> configureDatabase)
+    {
+        foreach (var database in AllActive())
+        {
+            await configureDatabase(database);
+        }
+
+        _configurations.Add(configureDatabase);
     }
 }

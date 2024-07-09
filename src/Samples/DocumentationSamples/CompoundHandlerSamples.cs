@@ -2,18 +2,14 @@ using Marten;
 
 namespace DocumentationSamples;
 
-public class CompoundHandlerSamples
-{
-}
+public class CompoundHandlerSamples;
 
 public class Order
 {
     public Guid Id { get; set; }
 }
 
-public record ShipOrder(Guid OrderId, Guid CustomerId)
-{
-}
+public record ShipOrder(Guid OrderId, Guid CustomerId);
 
 public class MissingOrderException : Exception
 {
@@ -26,6 +22,7 @@ public class MissingOrderException : Exception
 public class Customer
 {
     public Guid Id { get; set; }
+    public string Name { get; set; }
 }
 
 #region sample_ShipOrderHandler
@@ -51,7 +48,7 @@ public static class ShipOrderHandler
     // business logic easy to unit test
     public static IEnumerable<object> Handle(ShipOrder command, Order order, Customer customer)
     {
-        // use the command data, plus the related Order & Customer data to 
+        // use the command data, plus the related Order & Customer data to
         // "decide" what action to take next
 
         yield return new MailOvernight(order.Id);

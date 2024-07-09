@@ -1,5 +1,3 @@
-using System.Diagnostics;
-using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Swashbuckle.AspNetCore.Swagger;
 using Wolverine.Http;
 
@@ -12,13 +10,12 @@ public static class Endpoints
     {
         return new ResponseModel();
     }
-    
+
     [WolverinePost("/message"), EmptyResponse]
     public static Message1 PostMessage()
     {
         return new Message1();
     }
-
 }
 
 public class BuildSwagger : IHostedService
@@ -33,7 +30,7 @@ public class BuildSwagger : IHostedService
     public Task StartAsync(CancellationToken cancellationToken)
     {
         //var document = _provider.GetSwagger("v1");
-        
+
         //Debug.WriteLine(document);
 
         return Task.CompletedTask;
@@ -45,7 +42,7 @@ public class BuildSwagger : IHostedService
     }
 }
 
-public class Message1{}
+public class Message1;
 
 public class ResponseModel
 {

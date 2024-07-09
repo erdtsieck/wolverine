@@ -15,7 +15,7 @@ namespace Wolverine.SqlServer.Persistence;
 internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersistence
 {
     public static string LeaderLockId = "9999999";
-    
+
     private readonly DatabaseSettings _settings;
     private readonly IMessageDatabase _database;
     private readonly DbObjectName _nodeTable;
@@ -35,7 +35,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         await conn.OpenAsync(cancellationToken);
 
         await conn.CreateCommand($"delete from {_nodeTable}").ExecuteNonQueryAsync(cancellationToken);
-        
+
         await conn.CloseAsync();
     }
 
@@ -45,7 +45,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         await conn.OpenAsync(cancellationToken);
 
         var strings = node.Capabilities.Select(x => x.ToString()).Join(",");
-        
+
         var cmd = conn.CreateCommand($"insert into {_nodeTable} (id, uri, capabilities, description) OUTPUT Inserted.node_number values (@id, @uri, @capabilities, @description) ")
             .With("id", node.Id)
             .With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString()).With("description", node.Description)
@@ -73,7 +73,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
     public async Task<IReadOnlyList<WolverineNode>> LoadAllNodesAsync(CancellationToken cancellationToken)
     {
         var nodes = new List<WolverineNode>();
-        
+
         await using var conn = new SqlConnection(_settings.ConnectionString);
         await conn.OpenAsync(cancellationToken);
 
@@ -93,7 +93,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         {
             var agentId = new Uri(await reader.GetFieldValueAsync<string>(0, cancellationToken));
             var nodeId = await reader.GetFieldValueAsync<Guid>(1, cancellationToken);
-            
+
             dict[nodeId].ActiveAgents.Add(agentId);
         }
 
@@ -151,12 +151,12 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
             .With("id", nodeId);
 
         WolverineNode returnValue = default!;
-        
+
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         if (await reader.ReadAsync(cancellationToken))
         {
             returnValue = await readNodeAsync(reader);
-            
+
             await reader.NextResultAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
@@ -175,7 +175,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         await using var conn = new SqlConnection(_settings.ConnectionString);
         await conn.OpenAsync();
 
-        await conn.CreateCommand($"update {_nodeTable} set health_check = GETDATE() where id = @id")
+        await conn.CreateCommand($"update {_nodeTable} set health_check = GETUTCDATE() where id = @id")
             .With("id", nodeId).ExecuteNonQueryAsync();
 
         await conn.CloseAsync();
@@ -209,7 +209,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
 
         var builder = new CommandBuilder();
         var nodeParameter = builder.AddNamedParameter("node", nodeId, SqlDbType.UniqueIdentifier);
-        
+
         foreach (var agent in agents)
         {
             var parameter = builder.AddParameter(agent.ToString());
@@ -223,7 +223,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
 
         await conn.CloseAsync();
     }
-    
+
     public async Task RemoveAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
     {
         await using var conn = new SqlConnection(_settings.ConnectionString);
@@ -233,7 +233,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
             .With("id", agentUri.ToString())
             .With("node", nodeId)
             .ExecuteNonQueryAsync(cancellationToken);
-        
+
         await conn.CloseAsync();
     }
 
@@ -246,7 +246,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
             .With("id", agentUri.ToString())
             .With("node", nodeId)
             .ExecuteNonQueryAsync(cancellationToken);
-        
+
         await conn.CloseAsync();
     }
 
@@ -311,7 +311,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
 
         return null;
     }
-    
+
     public async Task<IReadOnlyList<Uri>> LoadAllOtherNodeControlUrisAsync(Guid selfId)
     {
         await using var conn = new SqlConnection(_settings.ConnectionString);
@@ -324,7 +324,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
 
         return list.Select(x => x!.ToUri()).ToList();
     }
-    
+
     public async Task<IReadOnlyList<int>> LoadAllNodeAssignedIdsAsync()
     {
         await using var conn = new SqlConnection(_settings.ConnectionString);
@@ -337,11 +337,16 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
 
         return result;
     }
-    
+
     public Task LogRecordsAsync(params NodeRecord[] records)
     {
-        var op = new PersistNodeRecord(_settings, records);
-        return _database.EnqueueAsync(op);
+        if (records.Any())
+        {
+            var op = new PersistNodeRecord(_settings, records);
+            return _database.EnqueueAsync(op);
+        }
+
+        return Task.CompletedTask;
     }
 
     public async Task<IReadOnlyList<NodeRecord>> FetchRecentRecordsAsync(int count)
@@ -359,7 +364,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
 
             };
         };
-        
+
         await using var conn = new SqlConnection(_settings.ConnectionString);
         await conn.OpenAsync();
 

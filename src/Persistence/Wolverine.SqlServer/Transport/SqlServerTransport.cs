@@ -14,13 +14,36 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
 {
     public const string ProtocolName = "sqlserver";
 
-    public SqlServerTransport(DatabaseSettings settings) : base(ProtocolName, "Sql Server Transport")
+    public SqlServerTransport(DatabaseSettings settings) : this(settings, settings.SchemaName)
+    {
+        
+    }
+    public SqlServerTransport(DatabaseSettings settings, string? transportSchemaName) : base(ProtocolName, "Sql Server Transport")
     {
         Queues = new LightweightCache<string, SqlServerQueue>(name => new SqlServerQueue(name, this));
         Settings = settings;
+        if (settings.SchemaName.IsNotEmpty())
+        {
+            TransportSchemaName = settings.SchemaName;
+            MessageStorageSchemaName = settings.SchemaName;
+        }
+        if (transportSchemaName.IsNotEmpty())
+        {
+            TransportSchemaName = transportSchemaName;
+        }
     }
 
     public LightweightCache<string, SqlServerQueue> Queues { get; }
+
+	/// <summary>
+    /// Schema name for the queue and scheduled message tables
+    /// </summary>
+    public string TransportSchemaName { get; private set; } = "dbo";
+    
+    /// <summary>
+    /// Schema name for the message storage tables
+    /// </summary>
+    public string MessageStorageSchemaName { get; private set; } = "dbo";
 
     protected override IEnumerable<SqlServerQueue> endpoints()
     {
@@ -45,11 +68,13 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
 
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
+        AutoProvision = AutoProvision || runtime.Options.AutoBuildMessageStorageOnStartup;
+        
         var storage = runtime.Storage as SqlServerMessageStore;
 
         Storage = storage ?? throw new InvalidOperationException(
             "The Sql Server Transport can only be used if the message persistence is also Sql Server backed");
-        
+
         Settings = storage.Settings;
 
         // This is de facto a little environment test
@@ -67,7 +92,7 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
         yield return new PropertyColumn("Name");
         yield return new PropertyColumn("Count", Justify.Right);
         yield return new PropertyColumn("Scheduled", Justify.Right);
-        
+
     }
 
     public async Task<DateTimeOffset> SystemTimeAsync()
@@ -77,5 +102,4 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
 
         return (DateTimeOffset)await conn.CreateCommand("select SYSDATETIMEOFFSET()").ExecuteScalarAsync();
     }
-
 }

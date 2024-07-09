@@ -1,8 +1,10 @@
 using System.Text.Json;
 using JasperFx.CodeGeneration.Frames;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
@@ -16,7 +18,7 @@ namespace Wolverine.Http;
 
 public enum JsonUsage
 {
-    SystemTextJson, 
+    SystemTextJson,
     NewtonsoftJson
 }
 
@@ -75,6 +77,12 @@ public interface ITenantDetectionPolicies
     /// </summary>
     /// <param name="detection"></param>
     void DetectWith(ITenantDetection detection);
+
+    /// <summary>
+    /// If no tenant id is detected, this value should be used for the Tenant Id
+    /// </summary>
+    /// <param name="defaultTenantId"></param>
+    void DefaultIs(string defaultTenantId);
 }
 
 [Singleton]
@@ -85,16 +93,36 @@ public class WolverineHttpOptions
         Policies.Add(new HttpAwarePolicy());
         Policies.Add(new RequestIdPolicy());
         Policies.Add(new RequiredEntityPolicy());
-        
+
         Policies.Add(TenantIdDetection);
+    }
+    
+    public async ValueTask<string?> TryDetectTenantId(HttpContext httpContext)
+    {
+        foreach (var strategy in TenantIdDetection.Strategies)
+        {
+            var tenantId = await strategy.DetectTenant(httpContext);
+            if (tenantId.IsNotEmpty()) return tenantId;
+        }
+
+        return null;
+    }
+    
+    public string? TryDetectTenantIdSynchronously(HttpContext httpContext)
+    {
+        return TenantIdDetection
+            .Strategies
+            .OfType<ISynchronousTenantDetection>()
+            .Select(strategy => strategy.DetectTenantSynchronously(httpContext))
+            .FirstOrDefault(tenantId => tenantId.IsNotEmpty());
     }
 
     internal TenantIdDetection TenantIdDetection { get; } = new();
 
     internal Lazy<JsonSerializerOptions> JsonSerializerOptions { get; set; } = new(() => new JsonSerializerOptions());
-    
+
     internal JsonSerializerSettings NewtonsoftSerializerSettings { get; set; } = new();
-    
+
     internal HttpGraph? Endpoints { get; set; }
 
     internal MiddlewarePolicy Middleware { get; } = new();
@@ -159,8 +187,7 @@ public class WolverineHttpOptions
     {
         Policies.Add(new T());
     }
-    
-    
+
     /// <summary>
     ///     Add a new IResourceWriterPolicy for the Wolverine endpoints
     /// </summary>
@@ -169,7 +196,7 @@ public class WolverineHttpOptions
     {
         ResourceWriterPolicies.Add(new T());
     }
-    
+
     /// <summary>
     ///     Add a new IResourceWriterPolicy for the Wolverine endpoints
     /// </summary>
@@ -252,7 +279,7 @@ public class WolverineHttpOptions
     {
         return PublishMessage<T>(HttpMethod.Post, url, customize);
     }
-    
+
     /// <summary>
     ///     From this url, forward a JSON serialized message by sending through Wolverine
     /// </summary>
@@ -279,5 +306,4 @@ public class WolverineHttpOptions
     {
         return SendMessage<T>(HttpMethod.Post, url, customize);
     }
-    
 }

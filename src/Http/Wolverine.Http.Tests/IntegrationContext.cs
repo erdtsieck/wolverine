@@ -18,8 +18,8 @@ public class AppFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        // Sorry folks, but this is absolutely necessary if you 
-        // use Oakton for command line processing and want to 
+        // Sorry folks, but this is absolutely necessary if you
+        // use Oakton for command line processing and want to
         // use WebApplicationFactory and/or Alba for integration testing
         OaktonEnvironment.AutoStartHost = true;
 
@@ -61,8 +61,6 @@ public class AppFixture : IAsyncLifetime
                 Host = null;
             }
         }
-
-
     }
 
     public async Task ResetHost()
@@ -97,11 +95,7 @@ public class AppFixture : IAsyncLifetime
 }
 
 [CollectionDefinition("integration")]
-public class IntegrationCollection : ICollectionFixture<AppFixture>
-{
-}
-
-
+public class IntegrationCollection : ICollectionFixture<AppFixture>;
 
 [Collection("integration")]
 public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
@@ -112,7 +106,7 @@ public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
     {
         _fixture = fixture;
     }
-    
+
     // more....
 
     public HttpGraph HttpChains => Host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!;
@@ -128,7 +122,7 @@ public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
             {
                 _fixture.ResetHost().GetAwaiter().GetResult();
             }
-            
+
             return _fixture.Host.Services.GetRequiredService<IDocumentStore>();
         }
     }
@@ -140,14 +134,13 @@ public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
         await Store.Advanced.ResetAllData();
     }
 
-    // This is required because of the IAsyncLifetime 
+    // This is required because of the IAsyncLifetime
     // interface. Note that I do *not* tear down database
     // state after the test. That's purposeful
     public Task DisposeAsync()
     {
         return Task.CompletedTask;
     }
-
 
     public async Task<IScenarioResult> Scenario(Action<Scenario> configure)
     {
@@ -197,7 +190,7 @@ public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
 
         return endpoint;
     }
-    
+
     protected (OpenApiPathItem, OpenApiOperation) FindOpenApiDocument(string path)
     {
         var swagger = Host.Services.GetRequiredService<ISwaggerProvider>();
@@ -226,8 +219,4 @@ public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
 
         throw new Exception($"Unable to find {httpMethod} {path}");
     }
-
-
 }
-
-

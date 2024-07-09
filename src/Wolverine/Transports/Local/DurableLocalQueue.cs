@@ -1,6 +1,5 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
-using Spectre.Console;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
@@ -96,7 +95,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         _receiver = null;
 
         CircuitBreaker?.Reset();
-        
+
         _runtime.Tracker.Publish(
             new ListenerState(Endpoint.Uri, Endpoint.EndpointName, ListeningStatus.Stopped));
 
@@ -216,7 +215,6 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
             _receiver!.Enqueue(envelope);
         }
     }
-
 
     private void writeMessageData(Envelope envelope)
     {

@@ -1,8 +1,5 @@
-using System;
-using System.Collections.Generic;
 using RabbitMQ.Client;
 using Wolverine.Configuration;
-using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal;
@@ -15,7 +12,18 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
     }
 
     /// <summary>
-    /// Make any necessary customizations to the Rabbit MQ client's ConnectionFactory 
+    /// Opt into making Wolverine "auto ping" new listeners by trying to send a fake Wolverine "ping" message
+    /// This *might* assist in Wolverine auto-starting rabbit mq connections that have failed on the Rabbit MQ side
+    /// Experimental
+    /// </summary>
+    public RabbitMqTransportExpression AutoPingListeners()
+    {
+        Transport.AutoPingListeners = true;
+        return this;
+    }
+
+    /// <summary>
+    /// Make any necessary customizations to the Rabbit MQ client's ConnectionFactory
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
@@ -47,7 +55,6 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
         DeclareExchange(exchangeName, configure);
         return new BindingExpression(exchangeName, this);
     }
-
 
     /// <summary>
     ///     Opt into using conventional Rabbit MQ routing based on the message types
@@ -102,7 +109,7 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
 
         return this;
     }
-    
+
     /// <summary>
     /// Disable Wolverine's automatic dead letter queue setup, so it will not override
     /// dead letter queue exchange usage per queue or try to create Rabbit Mq objects for
@@ -141,7 +148,7 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
 
         return this;
     }
-    
+
     /// <summary>
     /// Turn on sender connection only in case if you only need to send messages
     /// The listener connection won't be created in this case
@@ -246,6 +253,4 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
 
         return this;
     }
-
-
 }

@@ -1,5 +1,3 @@
-using Amazon.SQS;
-using Amazon.SQS.Model;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
@@ -20,7 +18,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         var number = Guid.NewGuid().ToString();
 
         OutboundAddress = new Uri("sqs://receiver-" + number);
-        
+
         await SenderIs(opts =>
         {
             opts.UseAmazonSqsTransportLocally()

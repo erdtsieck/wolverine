@@ -10,15 +10,22 @@ code from the Wolverine testing code:
 <!-- snippet: sample_pushing_header_values_into_endpoint_methods -->
 <a id='snippet-sample_pushing_header_values_into_endpoint_methods'></a>
 ```cs
+// As of Wolverine 2.6, you can utilize header data in middleware
+public static void Before([FromHeader(Name = "x-day")] string? day)
+{
+    Debug.WriteLine($"Day header is {day}");
+    Day = day; // This is for testing
+}
+
 [WolverineGet("/headers/simple")]
 public string Get(
     // Find the request header with the supplied name and pass
     // it as the "name" parameter to this method at runtime
-    [FromHeader(Name = "x-wolverine")] 
+    [FromHeader(Name = "x-wolverine")]
     string name)
 {
     return name;
-}    
+}
 
 [WolverineGet("/headers/int")]
 public string Get(
@@ -31,7 +38,7 @@ public string Get(
 )
 {
     return (number * 2).ToString();
-}   
+}
 
 [WolverineGet("/headers/accepts")]
 // In this case, push the string value for the "accepts" header
@@ -41,5 +48,5 @@ public string GetETag([FromHeader] string accepts)
     return accepts;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/HeaderUsingEndpoint.cs#L10-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pushing_header_values_into_endpoint_methods' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/HeaderUsingEndpoint.cs#L13-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pushing_header_values_into_endpoint_methods' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

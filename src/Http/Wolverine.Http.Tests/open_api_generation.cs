@@ -1,13 +1,8 @@
 using System.Diagnostics;
-using System.Net;
 using JasperFx.Core.Reflection;
-using Microsoft.AspNetCore.Http.Metadata;
-using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi.Models;
 using Shouldly;
-using Swashbuckle.AspNetCore.Swagger;
-using TestingSupport;
 using WolverineWebApi;
 using WolverineWebApi.TestSupport;
 
@@ -18,14 +13,12 @@ public class open_api_generation : IntegrationContext
     public open_api_generation(AppFixture fixture) : base(fixture)
     {
     }
-    
-    
 
     public static object[][] Chains()
     {
         var fixture = new AppFixture();
         fixture.InitializeAsync().GetAwaiter().GetResult();
-        
+
         var chains = fixture
             .Host
             .Services
@@ -34,12 +27,12 @@ public class open_api_generation : IntegrationContext
             .Chains
             .Where(x => x.Method.Method.HasAttribute<OpenApiExpectationAttribute>())
             .Select(x => new object[]{x}).ToArray();
-        
+
         fixture.DisposeAsync().GetAwaiter().GetResult();
 
         return chains;
     }
-    
+
     [Theory]
     [MemberData(nameof(Chains))]
     public void verify_open_api_expectations(HttpChain chain)
@@ -58,9 +51,6 @@ public class open_api_generation : IntegrationContext
             expectation.Validate(item, op, this);
         }
     }
-
-
-
 }
 
 public class try_build_chain
@@ -70,12 +60,11 @@ public class try_build_chain
     {
         var chain = HttpChain.ChainFor<OpenApiEndpoints>(x => x.GetJson());
         var endpoint = chain.BuildEndpoint();
-        
+
         Debug.WriteLine(endpoint);
 
         var description = chain.CreateApiDescription("get");
-        
+
         Debug.WriteLine(description);
     }
 }
-

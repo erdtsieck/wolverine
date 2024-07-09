@@ -1,7 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
+using JasperFx.CodeGeneration;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.RuntimeCompiler;
 using Microsoft.AspNetCore.Builder;
@@ -49,13 +48,25 @@ public partial class HttpChain : IEndpointConventionBuilder
 
     public RouteEndpoint BuildEndpoint()
     {
-        var handler = new Lazy<HttpHandler>(() =>
+        RequestDelegate? requestDelegate = null;
+        if (_parent.Rules.TypeLoadMode == TypeLoadMode.Static)
         {
             this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container);
-            return (HttpHandler)_parent.Container.QuickBuild(_handlerType);
-        });
+            var handler = (HttpHandler)_parent.Container.QuickBuild(_handlerType);
+            requestDelegate = handler.Handle;
+        }
+        else
+        {
+            var handler = new Lazy<HttpHandler>(() =>
+            {
+                this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container);
+                return (HttpHandler)_parent.Container.QuickBuild(_handlerType);
+            });
 
-        var builder = new RouteEndpointBuilder(c => handler.Value.Handle(c), RoutePattern!, Order)
+            requestDelegate = c => handler.Value.Handle(c);
+        }
+
+        var builder = new RouteEndpointBuilder(requestDelegate, RoutePattern!, Order)
         {
             DisplayName = DisplayName
         };
@@ -68,7 +79,7 @@ public partial class HttpChain : IEndpointConventionBuilder
         {
             tryApplyAsEndpointMetadataProvider(parameter.ParameterType, builder);
         }
-     
+
         // Set up OpenAPI data for ProblemDetails with status code 400 if not already exists
         if (Middleware.SelectMany(x => x.Creates).Any(x => x.VariableType == typeof(ProblemDetails)))
         {
@@ -77,6 +88,11 @@ public partial class HttpChain : IEndpointConventionBuilder
             {
                 builder.Metadata.Add(new ProducesProblemDetailsResponseTypeMetadata());
             }
+        }
+
+        if (RouteName.IsNotEmpty())
+        {
+            builder.Metadata.Add(new RouteNameMetadata(RouteName));
         }
 
         Endpoint = (RouteEndpoint?)builder.Build();
@@ -93,19 +109,19 @@ public partial class HttpChain : IEndpointConventionBuilder
             Metadata.Produces(204);
             return;
         }
-        
+
         if (ResourceType.CanBeCastTo<ISideEffect>())
         {
             Metadata.Produces(204);
             return;
         }
-        
+
         if (ResourceType == typeof(string))
         {
             Metadata.Produces(200, typeof(string), "text/plain");
             return;
         }
-        
+
         Metadata.Produces(200, ResourceType, "application/json");
         Metadata.Produces(404);
     }

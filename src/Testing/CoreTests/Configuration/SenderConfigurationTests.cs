@@ -63,7 +63,6 @@ public class SenderConfigurationTests
         endpoint.Mode.ShouldBe(EndpointMode.Inline);
     }
 
-
     [Fact]
     public void customize_envelope_rules()
     {
@@ -79,7 +78,6 @@ public class SenderConfigurationTests
 
         envelope.Headers["a"].ShouldBe("one");
     }
-
 
     [Fact]
     public void customize_per_specific_message_type()
@@ -104,7 +102,6 @@ public class SenderConfigurationTests
         envelope2.Headers["g"].ShouldBe("good");
     }
 
-
     [Fact]
     public void customize_per_specific_message_type_parent()
     {
@@ -128,13 +125,9 @@ public class SenderConfigurationTests
         envelope2.Headers["g"].ShouldBe("good");
     }
 
-    public abstract class BaseMessage
-    {
-    }
+    public abstract class BaseMessage;
 
-    public class ExtendedMessage : BaseMessage
-    {
-    }
+    public class ExtendedMessage : BaseMessage;
 
     public class ColorMessage
     {
@@ -142,6 +135,4 @@ public class SenderConfigurationTests
     }
 }
 
-public class OtherMessage
-{
-}
+public class OtherMessage;

@@ -1,4 +1,3 @@
-using System;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using TestingSupport;
@@ -24,7 +23,6 @@ public class can_customize_handler_chains_with_attributes
             action(chain);
         }
     }
-
 
     [Fact]
     public void apply_attribute_on_class()
@@ -64,9 +62,7 @@ public class FakeHandler1
 
 [FakeFrame]
 [MaximumAttempts(5)]
-public class ErrorHandledMessage
-{
-}
+public class ErrorHandledMessage;
 
 [FakeFrame]
 public class FakeHandler2

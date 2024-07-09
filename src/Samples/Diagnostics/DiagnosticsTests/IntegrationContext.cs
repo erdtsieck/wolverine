@@ -27,9 +27,7 @@ public class AppFixture : IAsyncLifetime
 }
 
 [CollectionDefinition("integration")]
-public class IntegrationCollection : ICollectionFixture<AppFixture>
-{
-}
+public class IntegrationCollection : ICollectionFixture<AppFixture>;
 
 [Collection("integration")]
 public abstract class IntegrationContext : IAsyncLifetime
@@ -55,7 +53,7 @@ public abstract class IntegrationContext : IAsyncLifetime
         await Store.Advanced.ResetAllData();
     }
 
-    // This is required because of the IAsyncLifetime 
+    // This is required because of the IAsyncLifetime
     // interface. Note that I do *not* tear down database
     // state after the test. That's purposeful
     public Task DisposeAsync()

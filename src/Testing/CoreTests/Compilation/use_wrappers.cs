@@ -1,5 +1,4 @@
-﻿using System.Threading.Tasks;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using TestingSupport;
 using TestingSupport.Compliance;
 using TestingSupport.Fakes;
@@ -31,7 +30,6 @@ public class use_wrappers : CompilationContext
         theTracking.OpenedSession.ShouldBeTrue();
         theTracking.CalledSaveChanges.ShouldBeTrue();
     }
-
 
     [Fact]
     public async Task wrapper_executes()

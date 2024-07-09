@@ -1,5 +1,3 @@
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TestingSupport;
@@ -33,7 +31,7 @@ public class StartingMessageHandler
     {
         logger.LogDebug("Got the end for {Name}", message.Name);
     }
-    
+
     public EndingMessage Handle(StartingMessage message)
     {
         return new EndingMessage(message.Name);

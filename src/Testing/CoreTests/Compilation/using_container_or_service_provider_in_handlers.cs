@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using Lamar;
 using TestingSupport;
 using Xunit;
@@ -58,9 +56,7 @@ public class using_container_or_service_provider_in_handlers : CompilationContex
     }
 }
 
-public class CSP1
-{
-}
+public class CSP1;
 
 public class CSP1Handler
 {
@@ -78,9 +74,7 @@ public class CSP1Handler
     }
 }
 
-public class CSP2
-{
-}
+public class CSP2;
 
 public class CSP2Handler
 {
@@ -91,9 +85,7 @@ public class CSP2Handler
     }
 }
 
-public class CSP3
-{
-}
+public class CSP3;
 
 public class CSP3Handler
 {
@@ -111,9 +103,7 @@ public class CSP3Handler
     }
 }
 
-public class CSP4
-{
-}
+public class CSP4;
 
 public class CSP4Handler
 {

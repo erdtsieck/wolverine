@@ -139,12 +139,18 @@ public static class AzureServiceBusTransportExtensions
     {
         private readonly string _subscriptionName;
         private readonly Action<CreateSubscriptionOptions>? _configureSubscriptions;
+        private readonly Action<CreateRuleOptions>? _configureSubscriptionRule;
         private readonly AzureServiceBusTransport _transport;
 
-        public SubscriptionExpression(string subscriptionName, Action<CreateSubscriptionOptions>? configureSubscriptions, AzureServiceBusTransport transport)
+        public SubscriptionExpression(
+            string subscriptionName,
+            Action<CreateSubscriptionOptions>? configureSubscriptions,
+            Action<CreateRuleOptions>? configureSubscriptionRule,
+            AzureServiceBusTransport transport)
         {
             _subscriptionName = subscriptionName;
             _configureSubscriptions = configureSubscriptions;
+            _configureSubscriptionRule = configureSubscriptionRule;
             _transport = transport;
         }
 
@@ -160,11 +166,12 @@ public static class AzureServiceBusTransportExtensions
 
             var topic = _transport.Topics[topicName];
             configureTopic?.Invoke(topic.Options);
-            
+
             var subscription = topic.FindOrCreateSubscription(_subscriptionName);
             subscription.IsListener = true;
-        
+
             _configureSubscriptions?.Invoke(subscription.Options);
+            _configureSubscriptionRule?.Invoke(subscription.RuleOptions);
 
             return new AzureServiceBusSubscriptionListenerConfiguration(subscription);
         }
@@ -178,18 +185,26 @@ public static class AzureServiceBusTransportExtensions
     /// <param name="topicName"></param>
     /// <param name="configureTopic">Optionally apply customizations to the Azure Service Bus topic</param>
     /// <param name="configureSubscriptions">Optionally apply customizations to the actual Azure Service Bus subscription</param>
+    /// <param name="configureSubscriptionRule">Optionally apply customizations to the Azure Service Bus subscription rule</param>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
-    public static SubscriptionExpression ListenToAzureServiceBusSubscription(this WolverineOptions endpoints, string subscriptionName, Action<CreateSubscriptionOptions>? configureSubscriptions = null)
+    public static SubscriptionExpression ListenToAzureServiceBusSubscription(
+        this WolverineOptions endpoints,
+        string subscriptionName,
+        Action<CreateSubscriptionOptions>? configureSubscriptions = null,
+        Action<CreateRuleOptions>? configureSubscriptionRule = null)
     {
         if (subscriptionName == null)
         {
             throw new ArgumentNullException(nameof(subscriptionName));
         }
 
-
         var transport = endpoints.AzureServiceBusTransport();
-        return new SubscriptionExpression(transport.MaybeCorrectName(subscriptionName), configureSubscriptions,
+
+        return new SubscriptionExpression(
+            transport.MaybeCorrectName(subscriptionName),
+            configureSubscriptions,
+            configureSubscriptionRule,
             transport);
     }
 
@@ -215,7 +230,7 @@ public static class AzureServiceBusTransportExtensions
 
         return new AzureServiceBusQueueSubscriberConfiguration(endpoint);
     }
-    
+
     /// <summary>
     /// Publish the designated messages to an Azure Service Bus topic
     /// </summary>
@@ -238,6 +253,4 @@ public static class AzureServiceBusTransportExtensions
 
         return new AzureServiceBusTopicSubscriberConfiguration(endpoint);
     }
-    
-    
 }

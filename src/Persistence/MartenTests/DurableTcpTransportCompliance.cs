@@ -42,7 +42,7 @@ public class DurableTcpTransportFixture : TransportComplianceFixture, IAsyncLife
                 o.Connection(Servers.PostgresConnectionString);
                 o.DatabaseSchemaName = "receiver";
             }).IntegrateWithWolverine();
-            
+
             opts.Durability.Mode = DurabilityMode.Solo;
         });
     }
@@ -54,6 +54,4 @@ public class DurableTcpTransportFixture : TransportComplianceFixture, IAsyncLife
 }
 
 [Collection("marten")]
-public class DurableTcpTransportCompliance : TransportCompliance<DurableTcpTransportFixture>
-{
-}
+public class DurableTcpTransportCompliance : TransportCompliance<DurableTcpTransportFixture>;

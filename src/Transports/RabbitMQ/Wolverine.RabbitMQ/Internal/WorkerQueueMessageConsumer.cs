@@ -1,6 +1,3 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using Wolverine.Transports;
@@ -48,7 +45,7 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
 
         try
         {
-            envelope.Data = body.ToArray(); 
+            envelope.Data = body.ToArray();
             _mapper.MapIncomingToEnvelope(envelope, properties);
         }
         catch (Exception e)
@@ -81,6 +78,5 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
                 _logger.LogError(ex, "Failure trying to Nack a previously failed message {Id}", envelope.Id);
             }
         }
-
     }
 }

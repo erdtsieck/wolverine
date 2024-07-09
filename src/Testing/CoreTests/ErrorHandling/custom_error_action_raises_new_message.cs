@@ -1,6 +1,4 @@
-using System;
 using System.Diagnostics;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using TestingSupport;
 using Wolverine.ErrorHandling;
@@ -162,9 +160,7 @@ public class ShipOrderHandler
     }
 }
 
-public class ShippingFailedException : Exception
-{
-}
+public class ShippingFailedException : Exception;
 
 public record ShippingFailed(int OrderId);
 

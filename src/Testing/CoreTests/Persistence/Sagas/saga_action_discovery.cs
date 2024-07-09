@@ -1,6 +1,4 @@
-﻿using System;
-using TestingSupport.Compliance;
-using Wolverine.Attributes;
+﻿using TestingSupport.Compliance;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 using Xunit.Abstractions;
@@ -65,14 +63,8 @@ public class MySagaStateGuy : Saga
     }
 }
 
-public class SagaStarter : Message3
-{
-}
+public class SagaStarter : Message3;
 
-public class SagaMessage1 : Message1
-{
-}
+public class SagaMessage1 : Message1;
 
-public class SagaMessage2 : Message2
-{
-}
+public class SagaMessage2 : Message2;

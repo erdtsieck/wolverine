@@ -1,6 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using TestingSupport;
 using TestingSupport.Compliance;
@@ -88,12 +85,9 @@ public class sending_messages_to_named_endpoints : IDisposable
             .Single(x => x.MessageEventType == MessageEventType.Received)
             .ServiceName.ShouldBe("two");
     }
-
 }
 
-public class TrackedMessage
-{
-}
+public class TrackedMessage;
 
 public record TriggerRoutedMessage(string EndpointName);
 

@@ -23,7 +23,7 @@ internal class RequiredEntityPolicy : IHttpPolicy
 
                 foreach (var parameter in requiredParameters)
                 {
-                    var frame = new SetStatusCodeAndReturnFrame(parameter.ParameterType);
+                    var frame = new SetStatusCodeAndReturnIfEntityIsNullFrame(parameter.ParameterType);
                     chain.Middleware.Add(frame);
                 }
             }
@@ -31,13 +31,13 @@ internal class RequiredEntityPolicy : IHttpPolicy
     }
 }
 
-internal class SetStatusCodeAndReturnFrame : SyncFrame
+public class SetStatusCodeAndReturnIfEntityIsNullFrame : SyncFrame
 {
     private readonly Type _entityType;
     private Variable _httpResponse;
     private Variable _entity;
 
-    public SetStatusCodeAndReturnFrame(Type entityType)
+    public SetStatusCodeAndReturnIfEntityIsNullFrame(Type entityType)
     {
         _entityType = entityType;
     }
@@ -55,9 +55,9 @@ internal class SetStatusCodeAndReturnFrame : SyncFrame
         {
             writer.Write("return;");
         }
-        
+
         writer.FinishBlock();
-        
+
         Next?.GenerateCode(method, writer);
     }
 
@@ -65,7 +65,7 @@ internal class SetStatusCodeAndReturnFrame : SyncFrame
     {
         _entity = chain.FindVariable(_entityType);
         yield return _entity;
-        
+
         _httpResponse = chain.FindVariable(typeof(HttpResponse));
         yield return _httpResponse;
     }

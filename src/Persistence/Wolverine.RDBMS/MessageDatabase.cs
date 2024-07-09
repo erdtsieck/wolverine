@@ -22,18 +22,17 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     private readonly string _outgoingEnvelopeSql;
     protected readonly DatabaseSettings _settings;
     private readonly DbDataSource _dataSource;
-    private readonly ILogger _logger;
     private DatabaseBatcher? _batcher;
     private string _schemaName;
 
     protected MessageDatabase(DatabaseSettings databaseSettings, DbDataSource dataSource, DurabilitySettings settings,
         ILogger logger, Migrator migrator, string defaultSchema) : base(new MigrationLogger(logger),
-        AutoCreate.CreateOrUpdate, migrator,
+        databaseSettings.AutoCreate, migrator,
         "WolverineEnvelopeStorage", () => (T)dataSource.CreateConnection())
     {
         _settings = databaseSettings;
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
-        _logger = logger;
+        Logger = logger;
         _schemaName = databaseSettings.SchemaName ?? defaultSchema;
 
         IncomingFullName = $"{SchemaName}.{DatabaseConstants.IncomingTable}";
@@ -44,7 +43,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         _deleteIncomingEnvelopeById =
             $"update {SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = @id";
-        _incrementIncominEnvelopeAttempts =
+        _incrementIncomingEnvelopeAttempts =
             $"update {SchemaName}.{DatabaseConstants.IncomingTable} set attempts = @attempts where id = @id";
 
         // ReSharper disable once VirtualMemberCallInConstructor
@@ -56,6 +55,8 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         DataSource = dataSource;
     }
 
+    public ILogger Logger { get; }
+
     public bool HasDisposed { get; protected set; }
 
     public DbDataSource DataSource { get; }
@@ -65,7 +66,6 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     public string IncomingFullName { get; private set; }
 
     public DurabilitySettings Durability { get; }
-
 
     public bool IsMaster => Settings.IsMaster;
 
@@ -119,7 +119,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     public void Initialize(IWolverineRuntime runtime)
     {
         if (_batcher != null) return;
-        
+
         _batcher = new DatabaseBatcher(this, runtime, runtime.Options.Durability.Cancellation);
 
         if (Settings.IsMaster && runtime.Options.Transports.NodeControlEndpoint == null && runtime.Options.Durability.Mode == DurabilityMode.Balanced)
@@ -152,7 +152,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     public async ValueTask DisposeAsync()
     {
         if (HasDisposed) return;
-        
+
         if (_batcher != null)
         {
             await _batcher.DisposeAsync();
@@ -164,7 +164,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         }
         catch
         {
-            // Not letting this fail out of here            
+            // Not letting this fail out of here
         }
 
         HasDisposed = true;
@@ -175,7 +175,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     public async Task ReleaseIncomingAsync(int ownerId)
     {
         if (_cancellation.IsCancellationRequested) return;
-        
+
         await _dataSource
             .CreateCommand(
                 $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0 where owner_id = @owner")
@@ -186,7 +186,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     public async Task ReleaseIncomingAsync(int ownerId, Uri receivedAt)
     {
         if (HasDisposed) return;
-        
+
         var impacted = await _dataSource
             .CreateCommand(
                 $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0 where owner_id = @owner and {DatabaseConstants.ReceivedAt} = @uri")
@@ -195,8 +195,8 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
             .ExecuteNonQueryAsync(_cancellation);
 
         if (impacted == 0) return;
-         
-        _logger.LogInformation("Reassigned {Impacted} incoming messages from {Owner} and endpoint at {Uri} to any node in the durable inbox", impacted, ownerId, receivedAt);
+
+        Logger.LogInformation("Reassigned {Impacted} incoming messages from {Owner} and endpoint at {Uri} to any node in the durable inbox", impacted, ownerId, receivedAt);
     }
 
     protected abstract INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings,
@@ -222,5 +222,10 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         agent.StartScheduledJobPolling();
 
         return agent;
+    }
+
+    public IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime)
+    {
+        return new DurabilityAgentFamily(runtime);
     }
 }

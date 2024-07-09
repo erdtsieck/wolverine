@@ -82,7 +82,6 @@ public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAs
         ScheduledMessageHandler.Reset();
     }
 
-
     protected virtual async Task initializeStorage(IHost sender, IHost receiver)
     {
         await theSender.ResetResourceState();
@@ -202,12 +201,10 @@ public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAs
         counts.Scheduled.ShouldBe(1, $"counts.Scheduled = {counts.Scheduled}, should be 1");
     }
 
-
     protected abstract IReadOnlyList<Envelope> loadAllOutgoingEnvelopes(IHost sender);
 
-
     [Fact]
-    public async Task<bool> send_scheduled_message()
+    public async Task send_scheduled_message()
     {
         await cleanDatabase();
 
@@ -228,12 +225,10 @@ public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAs
 
         ScheduledMessageHandler.ReceivedMessages.Single()
             .Id.ShouldBe(22);
-
-        return true;
     }
 
     [Fact]
-    public async Task<bool> schedule_job_locally()
+    public async Task schedule_job_locally()
     {
         await cleanDatabase();
 
@@ -256,13 +251,10 @@ public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAs
 
         ScheduledMessageHandler.ReceivedMessages.Single()
             .Id.ShouldBe(2);
-
-        return true;
     }
 
-
     [Fact]
-    public async Task<bool> can_send_durably_with_receiver_down()
+    public async Task can_send_durably_with_receiver_down()
     {
         await cleanDatabase();
 
@@ -284,8 +276,6 @@ public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAs
         outgoing.ShouldNotBeNull("No outgoing envelopes are persisted");
         outgoing.MessageType.ShouldBe(typeof(ItemCreated).ToMessageTypeName(),
             $"Envelope message type expected {typeof(ItemCreated).ToMessageTypeName()}, but was {outgoing.MessageType}");
-
-        return true;
     }
 }
 

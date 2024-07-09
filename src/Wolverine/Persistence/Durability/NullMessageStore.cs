@@ -17,6 +17,11 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         return Task.CompletedTask;
     }
 
+    public IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime)
+    {
+        return null;
+    }
+
     public Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
         return Task.CompletedTask;
@@ -106,7 +111,6 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 
     public void Initialize(IWolverineRuntime runtime)
     {
-
     }
 
     public bool HasDisposed { get; set; }
@@ -211,7 +215,6 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
     {
         throw new NotSupportedException();
     }
-
 
     public Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string? tenantId)
     {

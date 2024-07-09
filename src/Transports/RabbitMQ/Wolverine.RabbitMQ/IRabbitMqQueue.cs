@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace Wolverine.RabbitMQ;
 
 public interface IRabbitMqQueue
@@ -40,5 +37,4 @@ public interface IRabbitMqQueue
     /// </summary>
     /// <param name="limit"></param>
     void TimeToLive(TimeSpan limit);
-    
 }

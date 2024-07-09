@@ -1,5 +1,3 @@
-using System;
-using System.Linq;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using TestingSupport;
@@ -11,7 +9,6 @@ using Wolverine.Transports;
 using Wolverine.Transports.Local;
 using Wolverine.Transports.Stub;
 using Wolverine.Transports.Tcp;
-using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Configuration;
@@ -31,7 +28,7 @@ public class configuring_endpoints : IDisposable
             opts.ListenForMessagesFrom("local://three").UseDurableInbox();
             opts.ListenForMessagesFrom("local://four").UseDurableInbox().BufferedInMemory();
             opts.ListenForMessagesFrom("local://five").ProcessInline().TelemetryEnabled(false);
-            
+
             opts.ListenForMessagesFrom("local://durable1").UseDurableInbox(new BufferingLimits(500, 250));
             opts.ListenForMessagesFrom("local://buffered1").BufferedInMemory(new BufferingLimits(250, 100));
 
@@ -39,7 +36,7 @@ public class configuring_endpoints : IDisposable
 
             opts.DefaultLocalQueue
                 .MaximumParallelMessages(13);
-            
+
             opts.DurableScheduledMessagesLocalQueue
                 .MaximumParallelMessages(22);
         }).Build();
@@ -94,7 +91,7 @@ public class configuring_endpoints : IDisposable
     {
         var endpoint = findEndpoint("local://five");
         endpoint.TelemetryEnabled.ShouldBeFalse();
-        
+
         // Didn't impact:
         findEndpoint("local://one").TelemetryEnabled.ShouldBeTrue();
     }
@@ -259,7 +256,6 @@ public class configuring_endpoints : IDisposable
         findEndpoint(uriString)
             .IsListener.ShouldBeTrue();
     }
-
 
     [Fact]
     public void select_reply_endpoint_with_one_listener()

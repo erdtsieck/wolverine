@@ -5,6 +5,7 @@ using JasperFx.Core;
 using Lamar;
 using Marten;
 using Microsoft.AspNetCore.Http;
+using Wolverine.Http.Policies;
 
 namespace Wolverine.Http.Marten;
 
@@ -27,10 +28,22 @@ public class DocumentAttribute : HttpChainParameterAttribute
         RouteArgumentName = routeArgumentName;
     }
 
+    /// <summary>
+    /// Should the absence of this document cause the endpoint to return a 404 Not Found response?
+    /// Default -- for backward compatibility -- is false.
+    /// </summary>
+    public bool Required { get; set; } = false;
+
+    /// <summary>
+    /// If the document is soft-deleted, whether the endpoint should receive the document (<c>true</c>) or NULL (<c>false</c>).
+    /// Set it to <c>false</c> and combine it with <see cref="Required"/> so a 404 will be returned for soft-deleted documents.
+    /// </summary>
+    public bool MaybeSoftDeleted { get; set; } = true;
+
     public override Variable Modify(HttpChain chain, ParameterInfo parameter, IContainer container)
     {
         chain.Metadata.Produces(404);
-        
+
         var store = container.GetInstance<IDocumentStore>();
         var documentType = parameter.ParameterType;
         var mapping = store.Options.FindOrResolveDocumentType(documentType);
@@ -43,12 +56,24 @@ public class DocumentAttribute : HttpChainParameterAttribute
 
         var load = new MethodCall(typeof(IDocumentSession), loader.MakeGenericMethod(documentType));
         load.Arguments[0] = argument;
-        
+
         chain.Middleware.Add(load);
 
+        if (MaybeSoftDeleted is false && mapping.Metadata.IsSoftDeleted.Enabled)
+        {
+            var frame = new SetVariableToNullIfSoftDeletedFrame(parameter.ParameterType);
+            chain.Middleware.Add(frame);
+        }
+        
+        if (Required)
+        {
+            var frame = new SetStatusCodeAndReturnIfEntityIsNullFrame(parameter.ParameterType);
+            chain.Middleware.Add(frame);
+        }
+        
         return load.ReturnVariable;
     }
-    
+
     public Variable? FindRouteVariable(Type idType, Type documentType, HttpChain chain)
     {
         if (RouteArgumentName.IsNotEmpty())
@@ -63,7 +88,7 @@ public class DocumentAttribute : HttpChainParameterAttribute
         {
             return v2;
         }
-        
+
         if (chain.FindRouteVariable(idType, "id", out var v3))
         {
             return v3;

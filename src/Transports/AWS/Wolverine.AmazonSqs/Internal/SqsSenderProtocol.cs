@@ -3,13 +3,12 @@ using Amazon.SQS.Model;
 using Microsoft.Extensions.Logging;
 using JasperFx.Core;
 using Wolverine.Runtime;
-using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-internal class SqsSenderProtocol :ISenderProtocol 
+internal class SqsSenderProtocol :ISenderProtocol
 {
     private readonly ILogger _logger;
     private readonly AmazonSqsQueue _queue;
@@ -62,7 +61,7 @@ internal class OutgoingSqsBatch
                 {
                     entry.MessageDeduplicationId = envelope.DeduplicationId;
                 }
-				
+
                 entries.Add(entry);
                 _envelopes.Add(entry.Id, envelope);
             }
@@ -78,7 +77,6 @@ internal class OutgoingSqsBatch
     }
 
     public SendMessageBatchRequest Request { get; }
-
 
     public async Task ProcessSuccessAsync(ISenderCallback callback, SendMessageBatchResponse response,
         OutgoingMessageBatch batch)

@@ -1,6 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
-using Shouldly;
+﻿using Shouldly;
 using Wolverine.Attributes;
 using Wolverine.Persistence.Sagas;
 using Xunit;
@@ -16,7 +14,6 @@ public class IntBasicWorkflow : BasicWorkflow<IntStart, IntCompleteThree, int>
         Id = sagaId;
         Name = start.Name;
     }
-
 
     public void Handles(IntDoThree message)
     {

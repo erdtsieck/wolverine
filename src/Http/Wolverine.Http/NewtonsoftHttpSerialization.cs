@@ -4,7 +4,6 @@ using System.Text;
 using Lamar;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.Extensions.ObjectPool;
 using Newtonsoft.Json;
 
 namespace Wolverine.Http;
@@ -29,8 +28,7 @@ public class NewtonsoftHttpSerialization
     }
 
     public JsonSerializerSettings Settings { get; set; }
-    
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public async Task WriteJsonAsync(HttpContext context, object? body)
     {
@@ -39,7 +37,7 @@ public class NewtonsoftHttpSerialization
             context.Response.StatusCode = 404;
             return;
         }
-        
+
         var response = context.Response;
 
         var responseStream = response.Body;
@@ -54,7 +52,7 @@ public class NewtonsoftHttpSerialization
         };
 
         context.Response.ContentType = "application/json";
-        
+
         _serializer.Serialize(jsonWriter, body);
         await jsonWriter.FlushAsync();
     }

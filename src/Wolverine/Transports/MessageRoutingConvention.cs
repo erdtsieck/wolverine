@@ -1,5 +1,4 @@
 using JasperFx.Core;
-using JasperFx.Core.Filters;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -29,7 +28,7 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
         {
             return;
         }
-        
+
         var transport = runtime.Options.Transports.GetOrCreate<TTransport>();
 
         foreach (var messageType in handledMessageTypes.Where(t => _typeFilters.Matches(t)))
@@ -62,7 +61,7 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
         {
             yield break;
         }
-        
+
         if (!_typeFilters.Matches(messageType))
         {
             yield break;
@@ -89,7 +88,7 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
         var sendingAgent = runtime.Endpoints.GetOrBuildSendingAgent(endpoint.Uri);
         yield return sendingAgent.Endpoint;
     }
-    
+
     private bool _onlyApplyToOutboundMessages;
 
     /// <summary>
@@ -100,7 +99,7 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
         _onlyApplyToInboundMessages = false;
         _onlyApplyToOutboundMessages = true;
     }
-    
+
     private bool _onlyApplyToInboundMessages;
 
     /// <summary>
@@ -149,7 +148,7 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
     {
         return IdentifierForListener(nameSource);
     }
-    
+
     /// <summary>
     ///     Override the convention for determining the queue name for receiving incoming messages of the message type.
     ///     Returning null or empty is interpreted as "don't create a new queue for this message type". Default is the
@@ -201,7 +200,4 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
         _configureSending = configure ?? throw new ArgumentNullException(nameof(configure));
         return this.As<TSelf>();
     }
-    
-    
-
 }

@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS.Polling;
-using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime.WorkerQueues;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
@@ -17,8 +16,9 @@ public interface IMessageDatabase : IMessageStore
 
     string SchemaName { get; set; }
     DatabaseSettings Settings { get; }
-    
+
     DbDataSource DataSource { get; }
+    ILogger Logger { get; }
 
     Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes);
     Task StoreOutgoingAsync(DbTransaction tx, Envelope[] envelopes);
@@ -32,7 +32,7 @@ public interface IMessageDatabase : IMessageStore
     Task<PersistedCounts> FetchCountsAsync();
 
     Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
-    
+
     DbCommandBuilder ToCommandBuilder();
 
     Task EnqueueAsync(IDatabaseOperation operation);

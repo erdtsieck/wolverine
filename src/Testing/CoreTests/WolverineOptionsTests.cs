@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using JasperFx.Core;
+﻿using JasperFx.Core;
 using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -17,7 +12,6 @@ using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
 using Wolverine.Transports.Sending;
-using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests;
@@ -191,13 +185,9 @@ public class WolverineOptionsTests
             .ShouldBeSameAs(transport);
     }
 
-    public interface IFoo
-    {
-    }
+    public interface IFoo;
 
-    public class Foo : IFoo
-    {
-    }
+    public class Foo : IFoo;
 
     public class FakeTransport : ITransport
     {

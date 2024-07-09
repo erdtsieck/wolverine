@@ -1,6 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using CoreTests.Acceptance;
 using JasperFx.CodeGeneration.Frames;
 using Microsoft.Extensions.Hosting;
@@ -33,7 +30,6 @@ public class configuring_middleware
 
         assertions(chain);
     }
-
 
     [Fact]
     public async Task simple_before_and_after_with_instance_methods()
@@ -130,9 +126,7 @@ internal static class FrameAssertions
     }
 }
 
-public class MiddlewareMessage : SomeBaseMessage
-{
-}
+public class MiddlewareMessage : SomeBaseMessage;
 
 public class MiddlewareMessageHandler
 {

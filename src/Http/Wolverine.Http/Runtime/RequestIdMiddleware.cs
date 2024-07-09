@@ -12,7 +12,7 @@ namespace Wolverine.Http.Runtime;
 public static class RequestIdMiddleware
 {
     public const string CorrelationIdHeaderKey = "X-Correlation-ID";
-    
+
     // Remember that most Wolverine middleware can be done with "just" a method
     public static void Apply(HttpContext httpContext, IMessageContext messaging)
     {
@@ -45,7 +45,7 @@ internal class RequestIdPolicy : IHttpPolicy
 
 #endregion
 
-internal class MyAuthenticationMiddleware{}
+internal class MyAuthenticationMiddleware;
 
 // Leave this alone, it's used in sample code for docs
 internal class RequestIdPolicyApplication

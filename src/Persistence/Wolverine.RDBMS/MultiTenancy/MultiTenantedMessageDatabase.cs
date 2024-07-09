@@ -1,6 +1,5 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
-using Spectre.Console;
 using Weasel.Core.Migrations;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
@@ -10,6 +9,15 @@ using Wolverine.Transports;
 using Wolverine.Util.Dataflow;
 
 namespace Wolverine.RDBMS.MultiTenancy;
+
+public class MultiTenantedMessageDatabase<T> : MultiTenantedMessageDatabase, IAncillaryMessageStore<T>
+{
+    public MultiTenantedMessageDatabase(IMessageDatabase master, IWolverineRuntime runtime, IMessageDatabaseSource databases) : base(master, runtime, databases)
+    {
+    }
+
+    public Type MarkerType => typeof(T);
+}
 
 public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters
 {
@@ -241,6 +249,19 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         _initialized = true;
     }
 
+    public async Task<IReadOnlyList<IMessageDatabase>> CheckForDatabasesAsync(IWolverineRuntime runtime)
+    {
+        await _databases.RefreshAsync();
+
+        var messageDatabases = databases().ToList();
+        foreach (var database in messageDatabases)
+        {
+            database.Initialize(runtime);
+        }
+
+        return messageDatabases;
+    }
+
     public bool HasDisposed { get; private set; }
     public IMessageInbox Inbox => this;
     public IMessageOutbox Outbox => this;
@@ -385,7 +406,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
 
     public ValueTask<IMessageDatabase> GetDatabaseAsync(string? tenantId)
     {
-        return tenantId.IsEmpty() || tenantId == TransportConstants.Default
+        return tenantId.IsEmpty() || tenantId == TransportConstants.Default || tenantId == "Master"
             ? new ValueTask<IMessageDatabase>(Master)
             : _databases.FindDatabaseAsync(tenantId);
     }
@@ -448,5 +469,19 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Add extra configuration to every actively used tenant database
+    /// </summary>
+    /// <param name="configureDatabase"></param>
+    public ValueTask ConfigureDatabaseAsync(Func<IMessageDatabase, ValueTask> configureDatabase)
+    {
+        return _databases.ConfigureDatabaseAsync(configureDatabase);
+    }
+    
+    public IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime)
+    {
+        return new DurabilityAgentFamily(runtime);
     }
 }

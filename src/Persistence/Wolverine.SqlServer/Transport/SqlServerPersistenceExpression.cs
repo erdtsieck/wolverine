@@ -1,4 +1,3 @@
-using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Transports;
 
@@ -38,7 +37,7 @@ public class SqlServerPersistenceExpression : BrokerExpression<SqlServerTranspor
 
             e.Mode = EndpointMode.BufferedInMemory;
         });
-        
+
         _options.Policies.Add(policy);
         return this;
     }

@@ -1,4 +1,3 @@
-using Amazon.SQS.Model;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
@@ -11,7 +10,7 @@ namespace Wolverine.AmazonSqs.Tests;
 public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
     public static int Number = 0;
-    
+
     public InlineComplianceFixture() : base(new Uri("sqs://buffered-receiver"), 120)
     {
     }
@@ -21,7 +20,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
         var number = ++Number;
 
         OutboundAddress = new Uri("sqs://receiver-" + number);
-        
+
         await SenderIs(opts =>
         {
             opts.UseAmazonSqsTransportLocally()

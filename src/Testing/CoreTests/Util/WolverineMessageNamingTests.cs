@@ -45,7 +45,7 @@ public class WolverineMessageNamingTests
     public void use_interface_from_interop_message_naming()
     {
         WolverineMessageNaming.AddMessageInterfaceAssembly(typeof(IInterfaceMessage).Assembly);
-        
+
         typeof(ConcreteMessage).ToMessageTypeName().ShouldBe(typeof(IInterfaceMessage).ToMessageTypeName());
     }
 
@@ -70,27 +70,18 @@ public class ConcreteMessage : IInterfaceMessage
 }
 
 [MessageIdentity(typeof(AliasedMessage))]
-public class DifferentMessage
-{
-    
-}
+public class DifferentMessage;
 
 
 [MessageIdentity("MyThing")]
-public class AliasedMessage
-{
-}
+public class AliasedMessage;
 
 [MessageIdentity("MyThing", Version = 2)]
-public class AliasedMessage2
-{
-}
+public class AliasedMessage2;
 
-public class MySpecialMessage
-{
-}
+public class MySpecialMessage;
 
-public interface IMessageInterface{}
+public interface IMessageInterface;
 
 [InteropMessage(typeof(IMessageInterface))]
-public class InteropAttributedMessage : IMessageInterface{}
+public class InteropAttributedMessage : IMessageInterface;

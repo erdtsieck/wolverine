@@ -6,10 +6,7 @@ namespace NSwagDemonstrator;
 
 public record CreateTodoListRequest(string Title);
 
-public class TodoList
-{
-    
-}
+public class TodoList;
 
 public record TodoListCreated(Guid ListId, string Title);
 
@@ -24,9 +21,8 @@ public static class TodoListEndpoint
         var listId = CombGuidIdGeneration.NewGuid();
         var result = new TodoListCreated(listId, request.Title);
         var startStream = MartenOps.StartStream<TodoList>(result);
-        var response = Results.Created("api/todo-lists/" + listId, result); 
-       
+        var response = Results.Created("api/todo-lists/" + listId, result);
+
         return (response, startStream);
     }
 }
-

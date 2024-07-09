@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -17,7 +16,7 @@ internal class ReadJsonBody : AsyncFrame
         {
             parameterName = Variable.DefaultArgName(parameter.ParameterType);
         }
-        
+
         Variable = new Variable(parameter.ParameterType, parameterName, this);
     }
 
@@ -42,7 +41,7 @@ internal class ReadJsonBodyWithNewtonsoft : MethodCall
         return typeof(NewtonsoftHttpSerialization).GetMethod(nameof(NewtonsoftHttpSerialization.ReadFromJsonAsync))
             .MakeGenericMethod(parameterType);
     }
-    
+
     public ReadJsonBodyWithNewtonsoft(ParameterInfo parameter) : base(typeof(NewtonsoftHttpSerialization), findMethodForType(parameter.ParameterType))
     {
         var parameterName = parameter.Name!;
@@ -50,7 +49,7 @@ internal class ReadJsonBodyWithNewtonsoft : MethodCall
         {
             parameterName = Variable.DefaultArgName(parameter.ParameterType);
         }
-        
+
         ReturnVariable!.OverrideName(parameterName);
 
         CommentText = "Reading the request body with JSON deserialization";
@@ -68,15 +67,21 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
             return false;
         }
 
-        if (parameter.HasAttribute<NotBodyAttribute>()) return false;
+        if (parameter.HasAttribute<NotBodyAttribute>())
+        {
+            return false;
+        }
 
         if (chain.RequestType == null && parameter.ParameterType.IsConcrete())
         {
-            variable = Usage == JsonUsage.SystemTextJson 
-                ? new ReadJsonBody(parameter).Variable 
+            // It *could* be used twice, so let's watch out for this!
+            chain.RequestBodyVariable ??= Usage == JsonUsage.SystemTextJson
+                ? new ReadJsonBody(parameter).Variable
                 : new ReadJsonBodyWithNewtonsoft(parameter).ReturnVariable!;
-            
-            // Oh, this does NOT make me feel good
+
+            variable = chain.RequestBodyVariable;
+
+            // Oh, this does NOT make me feel good!
             chain.RequestType = parameter.ParameterType;
             return true;
         }

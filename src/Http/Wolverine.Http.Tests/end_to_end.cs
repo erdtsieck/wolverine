@@ -1,5 +1,3 @@
-using System.Globalization;
-using System.Net.Http.Headers;
 using Alba;
 using Shouldly;
 using WolverineWebApi;
@@ -61,7 +59,7 @@ public class end_to_end : IntegrationContext
         {
             x.Get.Url("/enum/west");
         });
-        
+
         body.ReadAsText().ShouldBe("Direction is West");
     }
 
@@ -86,5 +84,4 @@ public class end_to_end : IntegrationContext
             x.StatusCodeShouldBe(404);
         });
     }
-
 }

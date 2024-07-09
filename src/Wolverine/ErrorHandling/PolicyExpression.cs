@@ -64,7 +64,6 @@ public interface IAdditionalActions
     /// <param name="source"></param>
     /// <returns></returns>
     IAdditionalActions And(IContinuationSource source);
-    
 }
 
 internal class FailureActions : IAdditionalActions, IFailureActions
@@ -166,6 +165,23 @@ internal class FailureActions : IAdditionalActions, IFailureActions
             var slot = _rule.AddSlot(new ScheduledRetryContinuation(delays[i]));
             _slots.Add(slot);
         }
+
+        return this;
+    }
+
+    public IAdditionalActions ScheduleRetryIndefinitely(params TimeSpan[] delays)
+    {
+        if (delays.Length == 0)
+        {
+            throw new InvalidOperationException("You must specify at least one delay time");
+        }
+
+        for (var i = 0; i < delays.Length; i++)
+        {
+            _rule.AddSlot(new ScheduledRetryContinuation(delays[i]));
+        }
+
+        _rule.InfiniteSource = new ScheduledRetryContinuation(delays.Last());
 
         return this;
     }
@@ -277,6 +293,15 @@ public interface IFailureActions
     /// <param name="delays"></param>
     /// <exception cref="InvalidOperationException"></exception>
     IAdditionalActions ScheduleRetry(params TimeSpan[] delays);
+    
+    /// <summary>
+    ///     Schedule the message for additional attempts with a scheduled delay. The last delay will be used indefinitively.
+    ///     Use this method to effect an indefinite "exponential backoff" policy where the message is removed from the queue
+    /// so other messages can proceed
+    /// </summary>
+    /// <param name="delays"></param>
+    /// <exception cref="InvalidOperationException"></exception>
+    IAdditionalActions ScheduleRetryIndefinitely(params TimeSpan[] delays);
 
     /// <summary>
     ///     Retry the message processing inline one time
@@ -359,6 +384,11 @@ public class PolicyExpression : IFailureActions
         return new FailureActions(_match, _parent).ScheduleRetry(delays);
     }
 
+    public IAdditionalActions ScheduleRetryIndefinitely(params TimeSpan[] delays)
+    {
+        return new FailureActions(_match, _parent).ScheduleRetryIndefinitely(delays);
+    }
+
     /// <summary>
     ///     Retry the current message exactly one additional time
     /// </summary>
@@ -410,7 +440,6 @@ public class PolicyExpression : IFailureActions
         return this;
     }
 
-
     /// <summary>
     ///     Specifies an additional type of exception that this policy can handle.
     /// </summary>
@@ -435,7 +464,6 @@ public class PolicyExpression : IFailureActions
         _match = _match.Or(new UserSupplied(exceptionPredicate, description));
         return this;
     }
-
 
     /// <summary>
     ///     Specifies an additional type of exception that this policy can handle with additional filters on this exception

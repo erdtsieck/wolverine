@@ -1,6 +1,7 @@
 using System.Data.Common;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Serialization;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
@@ -102,7 +103,7 @@ public static class DatabasePersistence
     public static async Task<DeadLetterEnvelope> ReadDeadLetterAsync(DbDataReader reader, CancellationToken cancellation = default)
     {
         var id = await reader.GetFieldValueAsync<Guid>(0, cancellation);
-        var executionTime = await reader.GetFieldValueAsync<DateTimeOffset?>(1, cancellation);
+        var executionTime = await reader.IsDBNullAsync(1, cancellation).ConfigureAwait(false) ? null : await reader.GetFieldValueAsync<DateTimeOffset?>(1, cancellation);
         var envelope = EnvelopeSerializer.Deserialize(await reader.GetFieldValueAsync<byte[]>(2, cancellation));
         var messageType = await reader.GetFieldValueAsync<string>(3, cancellation);
         var receivedAt = await reader.GetFieldValueAsync<string>(4, cancellation);
@@ -114,15 +115,15 @@ public static class DatabasePersistence
 
 
         return new DeadLetterEnvelope(
-            id, 
-            executionTime, 
-            envelope, 
-            messageType, 
-            receivedAt, 
-            source, 
-            exceptionType, 
-            exceptionMessage, 
-            sentAt, 
+            id,
+            executionTime,
+            envelope,
+            messageType,
+            receivedAt,
+            source,
+            exceptionType,
+            exceptionMessage,
+            sentAt,
             replayable
         );
     }
@@ -130,11 +131,21 @@ public static class DatabasePersistence
     public static void ConfigureDeadLetterCommands(Envelope envelope, Exception? exception, DbCommandBuilder builder,
         IMessageDatabase wolverineDatabase)
     {
+        byte[] data = Array.Empty<byte>();
+        try
+        {
+            data = EnvelopeSerializer.Serialize(envelope);
+        }
+        catch (WolverineSerializationException e)
+        {
+            wolverineDatabase.Logger.LogError(e, "Error trying to serialize a dead letter envelope");
+        }
+        
         var list = new List<DbParameter>
         {
             builder.AddParameter(envelope.Id),
             builder.AddParameter(envelope.ScheduledTime),
-            builder.AddParameter(EnvelopeSerializer.Serialize(envelope)),
+            builder.AddParameter(data),
             builder.AddParameter(envelope.MessageType),
             builder.AddParameter(envelope.Destination?.ToString()),
             builder.AddParameter(envelope.Source),

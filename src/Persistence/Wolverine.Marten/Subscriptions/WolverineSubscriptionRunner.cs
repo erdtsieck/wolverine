@@ -2,10 +2,10 @@ using JasperFx.Core;
 using Marten;
 using Marten.Events.Daemon;
 using Marten.Events.Daemon.Internals;
-using Marten.Schema.Arguments;
 using Marten.Services;
 using Marten.Subscriptions;
 using Microsoft.Extensions.DependencyInjection;
+using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
 
 namespace Wolverine.Marten.Subscriptions;
@@ -29,10 +29,13 @@ internal class WolverineSubscriptionRunner : SubscriptionBase
         CancellationToken cancellationToken)
     {
         var context = new MessageContext(_runtime);
+
+        context.TenantId = operations.Database.Identifier;
+
         await context.EnlistInOutboxAsync(new MartenEnvelopeTransaction((IDocumentSession)operations, context));
 
         await _subscription.ProcessEventsAsync(page, controller, operations, context, cancellationToken);
-        
+
         return new WolverineCallbackForCascadingMessages(context);
     }
 }
@@ -47,7 +50,6 @@ internal class ScopedWolverineCallbackForCascadingMessages : IChangeListener
         _scope = scope;
         _context = context;
     }
-
 
     public async Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
     {

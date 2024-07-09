@@ -27,17 +27,17 @@ using var host = await Host.CreateDefaultBuilder()
     {
         // The Rabbit MQ transport supports all three types of listeners
         opts.UseRabbitMq();
-        
+
         // The durable mode requires some sort of envelope storage
         opts.PersistMessagesWithPostgresql("some connection string");
 
         opts.ListenToRabbitQueue("inline")
             // Process inline, default is with one listener
             .ProcessInline()
-            
+
             // But, you can use multiple, parallel listeners
             .ListenerCount(5);
-        
+
         opts.ListenToRabbitQueue("buffered")
             // Buffer the messages in memory for increased throughput
             .BufferedInMemory(new BufferingLimits(1000, 500));
@@ -132,3 +132,35 @@ ListeningAgent-->CircuitBreaker: potentially stops the listening
   from the messaging transport like a Rabbit MQ broker, and passes that information to Wolverine's message handlers
 * `ListeningAgent` is a controller within Wolverine that governs the listener lifecycle including pauses and restarts depending
   on load or error conditions
+
+## Strictly Ordered Listeners <Badge type="tip" text="2.3" />
+
+In the case where you need messages from a single endpoint to be processed in strict, global order across the entire application,
+you have the `ListenWithStrictOrdering()` option:
+
+<!-- snippet: sample_utilizing_ListenWithStrictOrdering -->
+<a id='snippet-sample_utilizing_listenwithstrictordering'></a>
+```cs
+var host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
+{
+    opts.UseRabbitMq().EnableWolverineControlQueues();
+    opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "listeners");
+
+    opts.ListenToRabbitQueue("ordered")
+
+        // This option is available on all types of Wolverine
+        // endpoints that can be configured to be a listener
+        .ListenWithStrictOrdering();
+}).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/exclusive_listeners.cs#L33-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_utilizing_listenwithstrictordering' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+This option does a couple things:
+
+* Ensures that Wolverine will *only* listen for messages on this endpoint on a single running node
+* Sets any local execution of the listener's internal, local queue to be strictly sequential and only process messages with
+  a single thread
+
+
+

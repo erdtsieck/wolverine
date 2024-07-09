@@ -21,7 +21,7 @@ using Wolverine.Util;
 
 namespace Wolverine.Runtime.Handlers;
 
-public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
+public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailurePolicies
 {
     public static readonly string Context = "context";
     private readonly List<HandlerCall> _calls = new();
@@ -118,7 +118,6 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
         return ChainFor(typeof(T));
     }
 
-
     public IMessageHandler? HandlerFor(Type messageType)
     {
         if (_handlers.TryFind(messageType, out var handler))
@@ -136,40 +135,54 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
 
             throw new NotSupportedException();
         }
-
+        
         if (_chains.TryFind(messageType, out var chain))
         {
-            if (chain.Handler != null)
-            {
-                handler = chain.Handler;
-            }
-            else
-            {
-                lock (_compilingLock)
-                {
-                    Debug.WriteLine("Starting to compile chain " + chain.MessageType.NameInCode());
-                    if (chain.Handler == null)
-                    {
-                        chain.InitializeSynchronously(Rules, this, Container);
-                        handler = chain.CreateHandler(Container!);
-                    }
-                    else
-                    {
-                        handler = chain.Handler;
-                    }
+            return resolveHandlerFromChain(messageType, chain);
+        }
 
-                    Debug.WriteLine("Finished building the chain " + chain.MessageType.NameInCode());
-                }
-            }
-
-            _handlers = _handlers.AddOrUpdate(messageType, handler);
-
-            return handler;
+        // This was to handle moving Event<T> to IEvent<T>
+        var candidates = _chains.Enumerate().Where(x => messageType.CanBeCastTo(x.Key)).ToArray();
+        if (candidates.Length == 1)
+        {
+            chain = candidates[0].Value;
+            return resolveHandlerFromChain(messageType, chain);
         }
 
         // memoize the "miss"
         _handlers = _handlers.AddOrUpdate(messageType, null);
         return null;
+    }
+
+    private IMessageHandler? resolveHandlerFromChain(Type messageType, HandlerChain chain)
+    {
+        IMessageHandler handler;
+        if (chain.Handler != null)
+        {
+            handler = chain.Handler;
+        }
+        else
+        {
+            lock (_compilingLock)
+            {
+                Debug.WriteLine("Starting to compile chain " + chain.MessageType.NameInCode());
+                if (chain.Handler == null)
+                {
+                    chain.InitializeSynchronously(Rules, this, Container);
+                    handler = chain.CreateHandler(Container!);
+                }
+                else
+                {
+                    handler = chain.Handler;
+                }
+
+                Debug.WriteLine("Finished building the chain " + chain.MessageType.NameInCode());
+            }
+        }
+
+        _handlers = _handlers.AddOrUpdate(messageType, handler);
+
+        return handler;
     }
 
     internal void Compile(WolverineOptions options, IContainer container)
@@ -307,7 +320,6 @@ public partial class HandlerGraph : ICodeFileCollection, IWithFailurePolicies
 
         return new HandlerChain(group, this);
     }
-
 
     internal void AddForwarders(Forwarders forwarders)
     {

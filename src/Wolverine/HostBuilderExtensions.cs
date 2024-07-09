@@ -21,6 +21,8 @@ namespace Wolverine;
 
 public static class HostBuilderExtensions
 {
+    internal static readonly string ExtensionScanningKey = "ExtensionScanning";
+    
     /// <summary>
     ///     Add Wolverine to an ASP.Net Core application with optional configuration to Wolverine
     /// </summary>
@@ -31,6 +33,18 @@ public static class HostBuilderExtensions
         Action<HostBuilderContext, WolverineOptions>? overrides = null)
     {
         return builder.UseWolverine(new WolverineOptions(), overrides);
+    }
+
+    /// <summary>
+    /// Use this to disable the automatic assembly scanning for Wolverine extensions
+    /// that can cause issues in specific Docker configurations
+    /// </summary>
+    /// <param name="builder"></param>
+    /// <returns></returns>
+    public static IHostBuilder DisableWolverineExtensionScanning(this IHostBuilder builder)
+    {
+        builder.Properties[ExtensionScanningKey] = "disabled";
+        return builder;
     }
 
     /// <summary>
@@ -158,7 +172,11 @@ public static class HostBuilderExtensions
 
             options.Services.InsertRange(0, services);
 
-            ExtensionLoader.ApplyExtensions(options);
+            if (!context.Properties.ContainsKey(ExtensionScanningKey))
+            {
+                ExtensionLoader.ApplyExtensions(options);
+            }
+
             if (options.ApplicationAssembly != null)
             {
                 options.HandlerGraph.Discovery.Assemblies.Fill(options.ApplicationAssembly);
@@ -180,7 +198,6 @@ public static class HostBuilderExtensions
     {
         services.AddSingleton(s => expression(s.GetRequiredService<IWolverineRuntime>()));
     }
-
 
     /// <summary>
     ///     Syntactical sugar to execute the Wolverine command line for a configured WebHostBuilder
@@ -258,7 +275,7 @@ public static class HostBuilderExtensions
     {
         return services.AddSingleton<IWolverineExtension, T>();
     }
-    
+
     /// <summary>
     /// Add an asynchronous wolverine extension to the IoC container to apply extra configuration to your system
     /// </summary>
@@ -297,7 +314,6 @@ public static class HostBuilderExtensions
         return services.GetRequiredService<IWolverineRuntime>().As<WolverineRuntime>().ApplyAsyncExtensions();
     }
 
-
     /// <summary>
     ///     Disable all Wolverine messaging outside the current process. This is almost entirely
     ///     meant to enable integration testing scenarios where you only mean to execute messages
@@ -305,6 +321,7 @@ public static class HostBuilderExtensions
     /// </summary>
     /// <param name="services"></param>
     /// <returns></returns>
+
     #region sample_extension_method_to_disable_external_transports
 
     public static IServiceCollection DisableAllExternalWolverineTransports(this IServiceCollection services)
@@ -326,4 +343,26 @@ public static class HostBuilderExtensions
     }
 
     #endregion
+    
+    /// <summary>
+    /// Override the durability mode of Wolverine to be "Solo". This is valuable in automated
+    /// testing scenarios to make application activation and teardown faster and to bypass
+    /// potential problems with leadership election when the application is being frequently
+    /// shut down from a debugger without closing cleanly. 
+    /// </summary>
+    /// <param name="services"></param>
+    /// <returns></returns>
+    public static IServiceCollection UseWolverineSoloMode(this IServiceCollection services)
+    {
+        services.AddSingleton<IWolverineExtension, UseSoloDurabilityMode>();
+        return services;
+    }
+
+    internal class UseSoloDurabilityMode : IWolverineExtension
+    {
+        public void Configure(WolverineOptions options)
+        {
+            options.Durability.Mode = DurabilityMode.Solo;
+        }
+    }
 }

@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -20,7 +18,7 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
     {
         var queueName = Guid.NewGuid().ToString();
         OutboundAddress = new Uri("asb://queue/foo." + queueName);
-        
+
         await SenderIs(opts =>
         {
             opts.UseAzureServiceBusTesting()
@@ -56,5 +54,4 @@ public class PrefixedSendingAndReceivingCompliance : TransportCompliance<Prefixe
             .ShouldBeOfType<AzureServiceBusQueue>()
             .QueueName.ShouldStartWith("foo.");
     }
-
 }

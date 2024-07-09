@@ -1,4 +1,3 @@
-using System.Security.Cryptography.X509Certificates;
 using JasperFx.Core.Reflection;
 using NSubstitute;
 using Wolverine.Runtime.Agents;
@@ -29,5 +28,4 @@ public class NodeMessageTests
 
         await endpoint.Received().SendAsync(original);
     }
-    
 }

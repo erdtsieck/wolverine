@@ -13,15 +13,15 @@ public class Bug_582_erroneous_faliure_ack
     [Fact]
     public async Task do_not_send_failure_ack()
     {
-        var builder = WebApplication.CreateBuilder(Array.Empty<string>());
+        var builder = WebApplication.CreateBuilder([]);
         builder.Services.AddScoped<IUserService, UserService>();
 
         builder.Services.AddMarten(Servers.PostgresConnectionString)
             .UseLightweightSessions()
             .IntegrateWithWolverine();
-        
+
         builder.Services.AddRefitClient<ITestHttpClient>();
-        
+
         builder.Host.UseWolverine(opts =>
         {
             opts.Discovery.IncludeAssembly(GetType().Assembly);
@@ -31,7 +31,7 @@ public class Bug_582_erroneous_faliure_ack
         {
             app.MapPost("/", async (CreateItemCommand cmd, IMessageBus bus) => await bus.InvokeAsync<Guid>(cmd));
         });
-        
+
         await host.Scenario(x =>
         {
             x.Post.Json(new CreateItemCommand{Name = "foo"}).ToUrl("/");
@@ -68,10 +68,10 @@ public class ItemHandler
             Id = Guid.NewGuid(),
             Name = "Foo"
         });
-        
+
         //Saving here, generates FailureAcknowledgementHandler error
         await session.SaveChangesAsync();
-        
+
         return Guid.NewGuid();
     }
 }

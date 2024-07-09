@@ -1,4 +1,6 @@
-﻿using JasperFx.Core;
+﻿using System.Runtime.Serialization;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
 using Wolverine.Util;
 
@@ -113,15 +115,29 @@ public partial class Envelope
 
             if (_message == null)
             {
-                throw new InvalidOperationException("Cannot ensure data is present when there is no message");
+                throw new WolverineSerializationException($"Cannot ensure data is present when there is no message. The Message Type Name is '{MessageType}'");
             }
 
             if (Serializer == null)
             {
-                throw new InvalidOperationException("No data or writer is known for this envelope");
+                if (_message is ISerializable serializable)
+                {
+                    _data = serializable.Write();
+                    return _data;
+                }
+                
+                throw new WolverineSerializationException($"No data or writer is known for this envelope of message type {_message.GetType().FullNameInCode()}");
             }
 
-            _data = Serializer.Write(this);
+            try
+            {
+                _data = Serializer.Write(this);
+            }
+            catch (Exception e)
+            {
+                throw new WolverineSerializationException(
+                    $"Error trying to serialize message of type {Message.GetType().FullNameInCode()} with serializer {Serializer}", e);
+            }
 
             return _data;
         }
@@ -149,14 +165,12 @@ public partial class Envelope
     /// </summary>
     public int Attempts { get; set; }
 
-
     public DateTimeOffset SentAt { get; internal set; } = DateTimeOffset.UtcNow;
 
     /// <summary>
     ///     The name of the service that sent this envelope
     /// </summary>
     public string? Source { get; internal set; }
-
 
     /// <summary>
     ///     Message type alias for the contents of this Envelope
@@ -237,7 +251,7 @@ public partial class Envelope
     /// Used internally to understand where an envelope is in persisted state
     /// </summary>
     public bool WasPersistedInOutbox { get; set; }
-    
+
     /// <summary>
     /// Application defined message group identifier. Part of AMQP 1.0 spec as the "group-id" property. Session identifier
     /// for Azure Service Bus.  MessageGroupId for Amazon SQS FIFO Queue
@@ -273,7 +287,6 @@ public partial class Envelope
         return this;
     }
 
-
     public override string ToString()
     {
         var text = $"Envelope #{Id}";
@@ -298,10 +311,8 @@ public partial class Envelope
             text += $" to {Destination}";
         }
 
-
         return text;
     }
-
 
     protected bool Equals(Envelope other)
     {
@@ -352,7 +363,6 @@ public partial class Envelope
     {
         return DeliverBy.HasValue && DeliverBy <= DateTimeOffset.Now;
     }
-
 
     internal string GetMessageTypeName()
     {

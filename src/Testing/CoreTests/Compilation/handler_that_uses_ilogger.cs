@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using TestingSupport;
@@ -28,7 +26,7 @@ public class handler_that_uses_ilogger
 
         var graph = host.Services.GetRequiredService<HandlerGraph>();
         var chain = graph.ChainFor<ItemCreated>();
-        
+
         _output.WriteLine(chain.SourceCode);
     }
 }

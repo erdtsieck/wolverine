@@ -7,7 +7,6 @@ using Oakton.Resources;
 using Shouldly;
 using Wolverine;
 using Wolverine.Logging;
-using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using Xunit.Abstractions;
@@ -160,7 +159,6 @@ public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<
 
         assertTheCircuitBreakerNeverTripped();
     }
-
 
     [Fact]
     public async Task the_circuit_breaker_should_trip_and_restart()

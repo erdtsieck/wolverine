@@ -28,7 +28,16 @@ public class MessageBus : IMessageBus
         Storage = runtime.Storage;
         CorrelationId = correlationId;
     }
-    
+
+    private void assertNotMediatorOnly()
+    {
+        if (Runtime.Options.Durability.Mode == DurabilityMode.MediatorOnly)
+        {
+            throw new InvalidOperationException(
+                $"This operation is not allowed with Wolverine is bootstrapped in {nameof(DurabilityMode.MediatorOnly)} mode");
+        }
+    }
+
     public string? CorrelationId { get; set; }
 
     public IWolverineRuntime Runtime { get; }
@@ -68,14 +77,13 @@ public class MessageBus : IMessageBus
         return new DestinationEndpoint(sender, this);
     }
 
-
     public Task InvokeAsync(object message, CancellationToken cancellation = default, TimeSpan? timeout = default)
     {
         if (message == null)
         {
             throw new ArgumentNullException(nameof(message));
         }
-        
+
         Runtime.AssertHasStarted();
 
         return Runtime.FindInvoker(message.GetType()).InvokeAsync(message, this, cancellation, timeout);
@@ -88,7 +96,7 @@ public class MessageBus : IMessageBus
         {
             throw new ArgumentNullException(nameof(message));
         }
-        
+
         Runtime.AssertHasStarted();
 
         return Runtime.FindInvoker(message.GetType()).InvokeAsync<T>(message, this, cancellation, timeout);
@@ -101,7 +109,7 @@ public class MessageBus : IMessageBus
         {
             throw new ArgumentNullException(nameof(message));
         }
-        
+
         Runtime.AssertHasStarted();
 
         return Runtime.FindInvoker(message.GetType()).InvokeAsync(message, this, cancellation, timeout, tenantId);
@@ -114,7 +122,7 @@ public class MessageBus : IMessageBus
         {
             throw new ArgumentNullException(nameof(message));
         }
-        
+
         Runtime.AssertHasStarted();
 
         return Runtime.FindInvoker(message.GetType()).InvokeAsync<T>(message, this, cancellation, timeout, tenantId);
@@ -131,8 +139,9 @@ public class MessageBus : IMessageBus
         {
             throw new ArgumentNullException(nameof(message));
         }
-        
+
         Runtime.AssertHasStarted();
+        assertNotMediatorOnly();
 
         // Cannot trust the T here. Can be "object"
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteForSend(message, options);
@@ -147,8 +156,9 @@ public class MessageBus : IMessageBus
         {
             throw new ArgumentNullException(nameof(message));
         }
-        
+
         Runtime.AssertHasStarted();
+        assertNotMediatorOnly();
 
         // You can't trust the T here.
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteForPublish(message, options);
@@ -170,8 +180,9 @@ public class MessageBus : IMessageBus
         {
             throw new ArgumentNullException(nameof(message));
         }
-        
+
         Runtime.AssertHasStarted();
+        assertNotMediatorOnly();
 
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteToTopic(message, topicName, options);
         return PersistOrSendAsync(outgoing);
@@ -232,7 +243,7 @@ public class MessageBus : IMessageBus
     {
         if (Transaction != null)
         {
-            // This filtering is done to only persist envelopes where 
+            // This filtering is done to only persist envelopes where
             // the sender is currently latched
             var envelopes = outgoing.Where(isDurable).ToArray();
             foreach (var envelope in envelopes.Where(x =>

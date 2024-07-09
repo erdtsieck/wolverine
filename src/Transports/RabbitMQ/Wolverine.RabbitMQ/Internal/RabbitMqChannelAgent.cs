@@ -1,19 +1,22 @@
-using System;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 
 namespace Wolverine.RabbitMQ.Internal;
 
-internal abstract class RabbitMqConnectionAgent : IDisposable
+/// <summary>
+/// Base class for Rabbit MQ listeners and senders
+/// </summary>
+internal abstract class RabbitMqChannelAgent : IDisposable
 {
-    private readonly IConnection _connection;
+    private readonly ConnectionMonitor _monitor;
     protected readonly object Locker = new();
 
-    protected RabbitMqConnectionAgent(IConnection connection,
+    protected RabbitMqChannelAgent(ConnectionMonitor monitor,
         ILogger logger)
     {
-        _connection = connection;
+        _monitor = monitor;
         Logger = logger;
+        monitor.Track(this);
     }
 
     public ILogger Logger { get; }
@@ -24,6 +27,7 @@ internal abstract class RabbitMqConnectionAgent : IDisposable
 
     public virtual void Dispose()
     {
+        _monitor.Remove(this);
         teardownChannel();
     }
 
@@ -41,7 +45,14 @@ internal abstract class RabbitMqConnectionAgent : IDisposable
                 return;
             }
 
-            startNewChannel();
+            try
+            {
+                startNewChannel();
+            }
+            catch (Exception e)
+            {
+                Logger.LogError(e, "Error trying to start a new Rabbit MQ channel for {Endpoint}", this);
+            }
 
             State = AgentState.Connected;
         }
@@ -49,18 +60,28 @@ internal abstract class RabbitMqConnectionAgent : IDisposable
 
     protected void startNewChannel()
     {
-        Channel = _connection.CreateModel();
+        Channel = _monitor.CreateModel();
 
         Channel.CallbackException += (sender, args) =>
         {
             Logger.LogError(args.Exception, "Callback error in Rabbit Mq agent");
         };
-        
+
         Channel.ModelShutdown += ChannelOnModelShutdown;
+
+        Logger.LogInformation("Opened a new channel for Wolverine endpoint {Endpoint}", this);
     }
 
     private void ChannelOnModelShutdown(object? sender, ShutdownEventArgs e)
     {
+        if (e.Initiator == ShutdownInitiator.Application) return;
+
+        if (e.Exception != null)
+        {
+            Logger.LogError(e.Exception,
+                "Unexpected channel shutdown for Rabbit MQ. Wolverine will attempt to restart...");
+        }
+
         EnsureConnected();
     }
 

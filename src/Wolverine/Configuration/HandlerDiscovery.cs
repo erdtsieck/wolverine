@@ -30,6 +30,9 @@ public sealed partial class HandlerDiscovery
         specifyHandlerDiscovery();
 
         _messageQuery.Excludes.IsStatic();
+        _messageQuery.Excludes.WithCondition(
+            $"Not implements {typeof(IMessage).FullNameInCode()} nor has attribute {typeof(WolverineMessageAttribute).FullNameInCode()}",
+            x => !x.CanBeCastTo<IMessage>() && !x.HasAttribute<WolverineMessageAttribute>());
         _messageQuery.Includes.Implements<IMessage>();
         _messageQuery.Includes.WithAttribute<WolverineMessageAttribute>();
         _messageQuery.Excludes.IsNotPublic();
@@ -104,7 +107,9 @@ public sealed partial class HandlerDiscovery
     }
 
     /// <summary>
-    ///     Customize the conventional filtering on the handler type discovery
+    ///  Customize the conventional filtering on the handler type discovery. This is *additive* to the
+    /// built in conventional handler discovery. Disabling conventional discovery will negate anything
+    /// done with this method
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>

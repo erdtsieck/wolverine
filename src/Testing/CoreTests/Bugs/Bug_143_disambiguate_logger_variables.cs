@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Wolverine.Tracking;
@@ -37,4 +36,3 @@ public class SecondHandler
         logger.LogInformation("Doing the second: {Name}", message.Name);
     }
 }
-

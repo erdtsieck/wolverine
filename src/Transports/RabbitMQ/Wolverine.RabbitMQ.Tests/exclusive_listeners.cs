@@ -19,13 +19,32 @@ namespace Wolverine.RabbitMQ.Tests;
 
 public class exclusive_listeners : IAsyncLifetime
 {
-    private readonly List<IHost> _hosts = new();
+    private readonly List<IHost> _hosts = [];
     private readonly ITestOutputHelper _output;
     private IHost _originalHost;
 
     public exclusive_listeners(ITestOutputHelper output)
     {
         _output = output;
+    }
+
+    public static async Task documentation_sample()
+    {
+        #region sample_utilizing_ListenWithStrictOrdering
+
+        var host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
+        {
+            opts.UseRabbitMq().EnableWolverineControlQueues();
+            opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "listeners");
+
+            opts.ListenToRabbitQueue("ordered")
+
+                // This option is available on all types of Wolverine
+                // endpoints that can be configured to be a listener
+                .ListenWithStrictOrdering();
+        }).StartAsync();
+
+        #endregion
     }
 
     [Fact]
@@ -36,8 +55,8 @@ public class exclusive_listeners : IAsyncLifetime
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
 
-                opts.ListenAtPort(PortFinder.GetAvailablePort()).ListenWithStrictOrdering();
-                opts.ListenAtPort(PortFinder.GetAvailablePort()).ListenWithStrictOrdering();
+                opts.ListenAtPort(PortFinder.GetAvailablePort()).ListenWithStrictOrdering().Named("one");
+                opts.ListenAtPort(PortFinder.GetAvailablePort()).ListenWithStrictOrdering().Named("two");
                 opts.ListenAtPort(PortFinder.GetAvailablePort()).Named("three");
             }).StartAsync();
 
@@ -46,7 +65,7 @@ public class exclusive_listeners : IAsyncLifetime
             .OrderBy(x => x)
             .ShouldHaveTheSameElementsAs("one", "three", "two");
     }
-    
+
     public async Task InitializeAsync()
     {
         await dropSchema();
@@ -59,13 +78,13 @@ public class exclusive_listeners : IAsyncLifetime
         _hosts.Reverse();
         foreach (var host in _hosts) await host.StopAsync();
     }
-    
+
     private async Task<IHost> startHostAsync()
     {
         var host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
             opts.Durability.HealthCheckPollingTime = 1.Seconds();
-                
+
             opts.Services.AddSingleton<IAgentFamily, FakeAgentFamily>();
             opts.UseRabbitMq().EnableWolverineControlQueues();
             opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "listeners");
@@ -76,7 +95,7 @@ public class exclusive_listeners : IAsyncLifetime
             opts.ListenToRabbitQueue("three").ListenWithStrictOrdering();
 
             opts.PublishMessage<ExclusiveMessage>().ToRabbitQueue("one");
-            
+
             opts.Services.AddResourceSetupOnStartup();
         }).StartAsync();
 
@@ -86,7 +105,7 @@ public class exclusive_listeners : IAsyncLifetime
 
         return host;
     }
-    
+
     private async Task shutdownHostAsync(IHost host)
     {
         host.GetRuntime().Agents.DisableHealthChecks();
@@ -122,18 +141,13 @@ public class exclusive_listeners : IAsyncLifetime
 
         session.Received.SingleMessage<ExclusiveMessage>().ShouldNotBeNull();
     }
-    
-    
-
-
 }
 
-public class ExclusiveMessage {}
+public class ExclusiveMessage;
 
 public static class ExclusiveMessageHandler
 {
     public static void Handle(ExclusiveMessage message)
     {
-        
     }
 }

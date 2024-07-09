@@ -1,5 +1,4 @@
 ﻿using System.Reflection;
-using System.Text;
 using System.Text.RegularExpressions;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -78,7 +77,7 @@ internal class FullTypeNaming : IMessageTypeNaming
             parts.Insert(0, messageType.DeclaringType!.Name);
         }
 
-        messageTypeName = string.Join("_", parts).Replace(",", "_");
+        messageTypeName = string.Join("_", parts).Replace(',', '_');
         return true;
     }
 }

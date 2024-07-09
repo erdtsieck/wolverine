@@ -1,10 +1,6 @@
-using System;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
 using System.Net.Sockets;
 using System.Security;
-using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -187,13 +183,9 @@ public class error_handling
         #endregion
     }
 
-    public class SystemIsCompletelyUnusableException : Exception
-    {
-    }
+    public class SystemIsCompletelyUnusableException : Exception;
 
-    public class InvalidMessageYouWillNeverBeAbleToProcessException : Exception
-    {
-    }
+    public class InvalidMessageYouWillNeverBeAbleToProcessException : Exception;
 
     #region sample_exponential_backoff_with_attributes
 
@@ -237,7 +229,6 @@ public class MyErrorCausingHandler
             .Requeue();
     }
 
-
     public void Handle(InvoiceCreated created)
     {
         // handle the invoice created message
@@ -258,9 +249,7 @@ public class InvoiceCreated
     public double Amount { get; set; }
 }
 
-public class InvoiceApproved
-{
-}
+public class InvoiceApproved;
 
 #region sample_configuring_error_handling_with_attributes
 
@@ -279,9 +268,7 @@ public class AttributeUsingHandler
 
 #endregion
 
-public class SqlException : Exception
-{
-}
+public class SqlException : Exception;
 
 public class FailedOnSecurity
 {

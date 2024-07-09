@@ -1,6 +1,4 @@
-using System.Reflection;
 using JasperFx.Core.Reflection;
-using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Hosting;
@@ -39,8 +37,6 @@ internal class WolverineApiDescriptionProvider : IApiDescriptionProvider
             }
         }
     }
-
-
 
     public void OnProvidersExecuted(ApiDescriptionProviderContext context)
     {

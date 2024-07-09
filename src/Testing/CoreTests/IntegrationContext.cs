@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.Extensions.Hosting;
+﻿using Microsoft.Extensions.Hosting;
 using TestingSupport;
 using TestingSupport.Compliance;
 using Wolverine.Runtime.Handlers;
@@ -63,7 +62,6 @@ public class IntegrationContext : IDisposable, IClassFixture<DefaultApp>
     {
         _default.Dispose();
     }
-
 
     protected void with(Action<WolverineOptions> configuration)
     {

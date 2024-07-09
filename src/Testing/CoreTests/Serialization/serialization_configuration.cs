@@ -1,12 +1,9 @@
-using System;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Newtonsoft.Json;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
-using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Serialization;
@@ -162,7 +159,7 @@ public class serialization_configuration
 
     public class FooSerializer : IMessageSerializer
     {
-        public string? ContentType { get; } = "text/foo";
+        public string? ContentType => "text/foo";
 
         public object? ReadFromData(byte[]? data)
         {

@@ -1,14 +1,13 @@
-using System.Collections.Immutable;
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Alba;
-using JasperFx.Core;
+using IntegrationTests;
+using Marten;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using NSubstitute;
 using WolverineWebApi;
 
@@ -22,18 +21,20 @@ public class Bug_505_required_attribute_not_working
         var breeder = new Breeder();
         var id = Guid.NewGuid();
         AggregateRepository.Breeders[id] = breeder;
-        
+
         var builder = WebApplication.CreateBuilder();
-        
+
         builder.Host.UseWolverine(opts =>
         {
             opts.Discovery.DisableConventionalDiscovery();
             opts.Discovery.IgnoreAssembly(typeof(OpenApiEndpoints).Assembly);
             opts.Discovery.IncludeAssembly(GetType().Assembly);
+
+            opts.Services.AddMarten(Servers.PostgresConnectionString);
         });
-        
+
         builder.Services.AddSingleton<AggregateRepository>();
-        
+
 
         var authorizationService = Substitute.For<IAuthorizationService>();
         builder.Services.AddSingleton<IAuthorizationService>(authorizationService);
@@ -53,7 +54,7 @@ public class Bug_505_required_attribute_not_working
             x.Post.Json(new ChangeVisionCommand("good", id)).ToUrl("/api/breeder/change-vision");
             x.StatusCodeShouldBe(204);
         });
-        
+
         // Miss should 404
         await host.Scenario(x =>
         {
@@ -61,17 +62,14 @@ public class Bug_505_required_attribute_not_working
             var breederId = Guid.NewGuid();
             authorizationService.AuthorizeAsync(principal, breederId, "EditBreeder")
                 .Returns(AuthorizationResult.Success());
-            
+
             x.Post.Json(new ChangeVisionCommand("good", breederId)).ToUrl("/api/breeder/change-vision");
             x.StatusCodeShouldBe(404);
         });
     }
 }
 
-public class Breeder
-{
-    
-}
+public class Breeder;
 
 public class AggregateRepository
 {

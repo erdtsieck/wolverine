@@ -89,8 +89,6 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             _scheduleExecution = new RetryBlock<Envelope>((e, _) => _inbox.ScheduleExecutionAsync(e),
                 _logger, _settings.Cancellation);
         }
-        
-        
 
         _moveToErrors = new RetryBlock<Envelope>(
             async (envelope, _) =>
@@ -106,7 +104,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             }, _logger,
             _settings.Cancellation);
 
-        _receivingOne = new RetryBlock<Envelope>((e, _) => receiveOneAsync(e), _logger, _settings.Cancellation);
+        _receivingOne = new RetryBlock<Envelope>((e, _) => deferOneAsync(e), _logger, _settings.Cancellation);
 
         if (endpoint.TryBuildDeadLetterSender(runtime, out var dlq))
         {
@@ -138,7 +136,6 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         _deferBlock.Dispose();
     }
 
-
     public ValueTask CompleteAsync(Envelope envelope)
     {
         return new ValueTask(_markAsHandled.PostAsync(envelope));
@@ -146,12 +143,16 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     public ValueTask DeferAsync(Envelope envelope)
     {
-        if (_latched)
+        if (_latched && !envelope.IsFromLocalDurableQueue())
         {
-            return new ValueTask(executeWithRetriesAsync(() => receiveOneAsync(envelope)));
+            return new ValueTask(executeWithRetriesAsync(() => deferOneAsync(envelope)));
         }
-        
-        envelope.Attempts++;
+
+        // GH-826, the attempts are already incremented from the executor
+        if (!envelope.IsFromLocalDurableQueue())
+        {
+            envelope.Attempts++;
+        }
 
         Enqueue(envelope);
 
@@ -187,7 +188,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         if (_latched)
         {
-            await executeWithRetriesAsync(() => receiveOneAsync(envelope));
+            await executeWithRetriesAsync(() => deferOneAsync(envelope));
             return;
         }
 
@@ -215,7 +216,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     {
         _latched = true;
         _receiver.Complete();
-        
+
         // Latching is the best you can do here, otherwise it can hang
         //await _receiver.Completion;
 
@@ -228,10 +229,8 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         await _completeBlock.DrainAsync();
         await _deferBlock.DrainAsync();
 
-
         await executeWithRetriesAsync(() => _inbox.ReleaseIncomingAsync(_settings.AssignedNodeNumber, Uri));
     }
-
 
     public void Dispose()
     {
@@ -260,7 +259,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         return _scheduleExecution.PostAsync(envelope);
     }
 
-    private async Task receiveOneAsync(Envelope envelope)
+    private async Task deferOneAsync(Envelope envelope)
     {
         if (_latched && envelope.Listener != null)
         {
@@ -320,7 +319,10 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             throw new OperationCanceledException();
         }
 
-        foreach (var envelope in envelopes) envelope.MarkReceived(listener, now, _settings);
+        foreach (var envelope in envelopes)
+        {
+            envelope.MarkReceived(listener, now, _settings);
+        }
 
         var batchSucceeded = false;
         if (_shouldPersistBeforeProcessing)
@@ -352,7 +354,6 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 await _completeBlock.PostAsync(message);
             }
         }
-
 
         _logger.IncomingBatchReceived(Uri, envelopes);
     }

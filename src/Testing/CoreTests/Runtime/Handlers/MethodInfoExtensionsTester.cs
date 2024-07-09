@@ -1,5 +1,4 @@
-﻿using System;
-using System.Linq.Expressions;
+﻿using System.Linq.Expressions;
 using System.Reflection;
 using JasperFx.Core.Reflection;
 using TestingSupport.Compliance;
@@ -42,7 +41,6 @@ public class MethodInfoExtensionsTester
         methodFor(x => x.Go5()).MessageType().ShouldBeNull();
     }
 
-
     [Fact]
     public void use_first_arg_if_it_is_concrete()
     {
@@ -72,17 +70,12 @@ public class MethodInfoExtensionsTester
         {
         }
 
-
         public void Go7(Message4 thing, IService service)
         {
         }
     }
 
-    public interface IService
-    {
-    }
+    public interface IService;
 
-    public interface IService2
-    {
-    }
+    public interface IService2;
 }

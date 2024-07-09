@@ -81,7 +81,6 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
         await buildAdditionalObjects();
     }
 
-
     public async Task DisposeAsync()
     {
         if (theReceiver != null)
@@ -107,7 +106,7 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
     protected abstract void configureSender(WolverineOptions senderRegistry);
 
     [Fact]
-    public async Task<bool> CanSendMessageEndToEnd()
+    public async Task CanSendMessageEndToEnd()
     {
         await cleanDatabase();
 
@@ -118,8 +117,6 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
             .AlsoTrack(theReceiver)
             .WaitForMessageToBeReceivedAt<CascadedMessage>(theSender)
             .SendMessageAndWaitAsync(trigger);
-
-        return true;
     }
 
     private async ValueTask cleanDatabase()
@@ -141,9 +138,8 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
         await withContext(theSender, nested.GetInstance<IMessageContext>().As<MessageContext>(), action);
     }
 
-
     [Fact]
-    public async Task<bool> CanScheduleJobDurably()
+    public async Task CanScheduleJobDurably()
     {
         await cleanDatabase();
 
@@ -158,13 +154,10 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
         var persistence = theSender.Get<IMessageStore>();
         var counts = await persistence.Admin.FetchCountsAsync();
         counts.Scheduled.ShouldBe(1);
-
-        return true;
     }
 
-
     [Fact]
-    public async Task<bool> SendWithReceiverDown()
+    public async Task SendWithReceiverDown()
     {
         await cleanDatabase();
 
@@ -185,15 +178,13 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
 
         outgoing.ShouldNotBeNull();
         outgoing.MessageType.ShouldBe(typeof(ItemCreated).ToMessageTypeName());
-
-        return true;
     }
 
     protected abstract IReadOnlyList<Envelope> loadAllOutgoingEnvelopes(IHost sender);
 
 
     [Fact]
-    public async Task<bool> SendScheduledMessage()
+    public async Task SendScheduledMessage()
     {
         await cleanDatabase();
 
@@ -215,11 +206,10 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
         ScheduledMessageHandler.ReceivedMessages.Single()
             .Id.ShouldBe(22);
 
-        return true;
     }
 
     [Fact]
-    public async Task<bool> ScheduleJobLocally()
+    public async Task ScheduleJobLocally()
     {
         await cleanDatabase();
 
@@ -243,7 +233,6 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
         ScheduledMessageHandler.ReceivedMessages.Single()
             .Id.ShouldBe(2);
 
-        return true;
     }
 }
 

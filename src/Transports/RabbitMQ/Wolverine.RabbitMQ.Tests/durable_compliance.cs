@@ -1,10 +1,8 @@
-using System.Threading.Tasks;
 using IntegrationTests;
 using JasperFx.Core;
 using Marten;
 using TestingSupport.Compliance;
 using Wolverine.Marten;
-using Wolverine.Util;
 using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;
@@ -24,9 +22,15 @@ public class RabbitMqTransportFixture : TransportComplianceFixture, IAsyncLifeti
         {
             var listener = $"listener{RabbitTesting.Number}";
 
-            opts.Services.AddMarten(Servers.PostgresConnectionString)
+            opts.Durability.Mode = DurabilityMode.Solo;
+
+            opts.Services.AddMarten(m =>
+                {
+                    m.Connection(Servers.PostgresConnectionString);
+                    m.DisableNpgsqlLogging = true;
+                })
                 .IntegrateWithWolverine("rabbit_sender");
-            
+
 
             opts.UseRabbitMq()
                 .AutoProvision()
@@ -40,11 +44,17 @@ public class RabbitMqTransportFixture : TransportComplianceFixture, IAsyncLifeti
 
         await ReceiverIs(opts =>
         {
-            opts.Services.AddMarten(Servers.PostgresConnectionString)
+            opts.Durability.Mode = DurabilityMode.Solo;
+
+            opts.Services.AddMarten(m =>
+                {
+                    m.Connection(Servers.PostgresConnectionString);
+                    m.DisableNpgsqlLogging = true;
+                })
                 .IntegrateWithWolverine("rabbit_receiver");
 
-            
-            opts.UseRabbitMq()                
+
+            opts.UseRabbitMq()
                 .ConfigureListeners(x => x.UseDurableInbox())
                 .ConfigureSenders(x => x.UseDurableOutbox()).EnableWolverineControlQueues();;
             opts.ListenToRabbitQueue(queueName).TelemetryEnabled(false);
@@ -58,6 +68,4 @@ public class RabbitMqTransportFixture : TransportComplianceFixture, IAsyncLifeti
 }
 
 [Collection("acceptance")]
-public class durable_compliance : TransportCompliance<RabbitMqTransportFixture>
-{
-}
+public class durable_compliance : TransportCompliance<RabbitMqTransportFixture>;

@@ -1,4 +1,3 @@
-using IntegrationTests;
 using Npgsql;
 using Shouldly;
 using Weasel.Postgresql;
@@ -24,7 +23,7 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     {
         Databases.Master.Name.ShouldBe("Master");
         Databases.Master.SchemaName.ShouldBe("control");
-            
+
         new NpgsqlConnectionStringBuilder(Databases.Master.DataSource.CreateConnection().ConnectionString)
             .Database.ShouldBe("postgres");
     }
@@ -34,7 +33,7 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     {
         // 3 tenant databases
         Databases.ActiveDatabases().Count.ShouldBe(4);
-        
+
         Databases.ActiveDatabases().ShouldContain(x => x.Name == "tenant1");
         Databases.ActiveDatabases().ShouldContain(x => x.Name == "tenant2");
         Databases.ActiveDatabases().ShouldContain(x => x.Name == "tenant3");
@@ -53,7 +52,7 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
             tables.ShouldContain(x => x.Name == DatabaseConstants.IncomingTable);
             tables.ShouldContain(x => x.Name == DatabaseConstants.OutgoingTable);
             tables.ShouldContain(x => x.Name == DatabaseConstants.DeadLetterTable);
-            
+
             await conn.CloseAsync();
         }
     }
@@ -69,7 +68,7 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
             tables.ShouldNotContain(x => x.Name == DatabaseConstants.NodeTableName);
             tables.ShouldNotContain(x => x.Name == DatabaseConstants.NodeAssignmentsTableName);
             tables.ShouldNotContain(x => x.Name == DatabaseConstants.ControlQueueTableName);
-            
+
             await conn.CloseAsync();
         }
     }
@@ -89,12 +88,12 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
         tables.ShouldContain(x => x.Name == DatabaseConstants.IncomingTable);
         tables.ShouldContain(x => x.Name == DatabaseConstants.OutgoingTable);
         tables.ShouldContain(x => x.Name == DatabaseConstants.DeadLetterTable);
-        
+
         // Master only tables
         tables.ShouldContain(x => x.Name == DatabaseConstants.NodeTableName);
         tables.ShouldContain(x => x.Name == DatabaseConstants.NodeAssignmentsTableName);
         tables.ShouldContain(x => x.Name == DatabaseConstants.ControlQueueTableName);
-            
+
         await conn.CloseAsync();
     }
 
@@ -105,10 +104,7 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
         {
             database.IsMaster.ShouldBeFalse();
         }
-        
+
         Databases.Master.IsMaster.ShouldBeTrue();
     }
-
-
-
 }

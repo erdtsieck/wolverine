@@ -1,5 +1,3 @@
-using System;
-using System.Linq;
 using Wolverine.ErrorHandling.Matches;
 using Xunit;
 
@@ -44,7 +42,6 @@ public class ComplexMatchTests
         theMatch.Excludes.Any().ShouldBeFalse();
         theMatch.Includes.Single().ShouldBeOfType<TypeMatch<BadImageFormatException>>();
     }
-
 
     [Fact]
     public void exclude_no_filter()

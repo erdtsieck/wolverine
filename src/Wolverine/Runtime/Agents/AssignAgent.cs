@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.Extensions.Logging;
 
@@ -28,7 +27,7 @@ internal record AssignAgent(Uri AgentUri, Guid NodeId) : IAgentCommand, ISeriali
 
         runtime.Logger.LogInformation("Successfully started agent {AgentUri} on node {NodeId}", AgentUri, runtime.Options.Durability.AssignedNodeNumber);
         runtime.Tracker.Publish(new AgentStarted(NodeId, AgentUri));
-        
+
         return AgentCommands.Empty;
     }
 
@@ -39,8 +38,8 @@ internal record AssignAgent(Uri AgentUri, Guid NodeId) : IAgentCommand, ISeriali
 
     public static object Read(byte[] bytes)
     {
-        var agentUriString = Encoding.UTF8.GetString(bytes.Skip(16).ToArray());
-        return new AssignAgent(new Uri(agentUriString), new Guid(bytes.Take(16).ToArray()));
+        var agentUriString = Encoding.UTF8.GetString(bytes[16..]);
+        return new AssignAgent(new Uri(agentUriString), new Guid(bytes[..16]));
     }
 
     public virtual bool Equals(AssignAgent? other)

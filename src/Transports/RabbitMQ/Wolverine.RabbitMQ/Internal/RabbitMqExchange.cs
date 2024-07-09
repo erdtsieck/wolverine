@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
@@ -12,7 +9,7 @@ namespace Wolverine.RabbitMQ.Internal;
 
 public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 {
-    private readonly List<RabbitMqBinding> _bindings = new();
+    private readonly List<RabbitMqBinding> _bindings = [];
     private readonly RabbitMqTransport _parent;
 
     private bool _initialized;
@@ -118,7 +115,7 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 
             throw new NotSupportedException("Direct exchanges with more than one binding are not yet supported by Wolverine");
         }
-        
+
         return string.Empty;
     }
 
@@ -193,7 +190,6 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
     {
         return _bindings;
     }
-
 }
 
 public class TopicBinding

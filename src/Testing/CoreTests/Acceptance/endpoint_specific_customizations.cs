@@ -1,4 +1,3 @@
-using System.Linq;
 using CoreTests.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TestingSupport;
@@ -43,13 +42,9 @@ public class endpoint_specific_customizations : SendingContext
         env2.Headers["c"].ShouldBe("three");
     }
 
-    public class CustomMessage
-    {
-    }
+    public class CustomMessage;
 
-    public class DifferentMessage
-    {
-    }
+    public class DifferentMessage;
 
     public class CustomMessageHandler
     {

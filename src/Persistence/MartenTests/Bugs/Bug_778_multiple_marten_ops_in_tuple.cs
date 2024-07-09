@@ -5,7 +5,6 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
 using Wolverine.Marten;
-using Wolverine.Runtime.Interop.MassTransit;
 using Wolverine.Tracking;
 
 namespace MartenTests.Bugs;
@@ -19,7 +18,7 @@ public class Bug_778_multiple_marten_ops_in_tuple : PostgresqlContext
             .UseWolverine(opts =>
             {
                 opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(SpawnHandler));
-                
+
                 opts.Services.AddMarten(m =>
                 {
                     m.Connection(Servers.PostgresConnectionString);
@@ -47,7 +46,7 @@ public class Bug_778_multiple_marten_ops_in_tuple : PostgresqlContext
 
 public static class SpawnHandler
 {
-    public static (IMartenOp, IMartenOp) Handle(SpawnTwo command) 
+    public static (IMartenOp, IMartenOp) Handle(SpawnTwo command)
         => (MartenOps.Store(new Person(command.Name1)), MartenOps.Store(new Person(command.Name2)));
 }
 

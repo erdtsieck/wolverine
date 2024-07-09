@@ -5,9 +5,7 @@ using Wolverine.ErrorHandling;
 
 namespace DocumentationSamples;
 
-public class ExceptionHandling
-{
-}
+public class ExceptionHandling;
 
 public static class AppWithErrorHandling
 {
@@ -42,7 +40,7 @@ public static class AppWithErrorHandling
                     // On the 2nd failure, put the message back into the
                     // incoming queue to be retried later
                     .Then.Requeue()
-                    
+
                     // Or almost the same, but pause before requeue-ing
                     .Then.PauseThenRequeue(500.Milliseconds())
 
@@ -90,6 +88,4 @@ public static class AppWithErrorHandling
     }
 }
 
-public class SqlException : Exception
-{
-}
+public class SqlException : Exception;

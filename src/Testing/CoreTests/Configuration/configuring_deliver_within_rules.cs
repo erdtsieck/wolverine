@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using TestingSupport;
@@ -29,7 +28,7 @@ public class configuring_deliver_within_rules
         session.Sent.SingleEnvelope<Message1>()
             .DeliverWithin.ShouldBe(3.Seconds());
     }
-    
+
     [Fact]
     public async Task configure_local_queue()
     {
@@ -38,7 +37,7 @@ public class configuring_deliver_within_rules
             {
                 opts.PublishAllMessages().ToLocalQueue("volatile")
                     .DeliverWithin(3.Seconds());
- 
+
             }).StartAsync();
 
         var message = new Message1();

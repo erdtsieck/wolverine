@@ -5,10 +5,7 @@ using Wolverine.Http;
 
 namespace WolverineWebApi;
 
-public class UserEndpoints
-{
-    
-}
+public class UserEndpoints;
 
 public record UserId(Guid Id);
 
@@ -45,7 +42,7 @@ public class TrainerDelete
         {
             return Results.Problem(userDelete.Errors.ToString());
         }
-        
+
         return userDelete.Succeeded ? Results.NoContent() : Results.Problem("Unable to delete trainer", statusCode:400);
     }
 }

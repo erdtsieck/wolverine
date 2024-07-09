@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using Marten;
 using Marten.Events;
 using Marten.Events.Aggregation;
@@ -22,7 +19,6 @@ public class BoardViewProjection : ExperimentalMultiStreamProjection<BoardView, 
 
         return ValueTask.CompletedTask;
     }
-
 
     // Using event metadata
     public BoardView Create(IEvent<BoardOpened> opened)

@@ -1,12 +1,9 @@
-using System.Linq;
-using System.Threading.Tasks;
 using JasperFx.Core.TypeScanning;
 using Microsoft.Extensions.DependencyInjection;
 using Module2;
 using OrderExtension;
 using TestingSupport;
 using Wolverine.Attributes;
-using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Xunit;
 using Xunit.Abstractions;
@@ -54,7 +51,6 @@ public class find_handlers_with_the_default_handler_discovery : IntegrationConte
         chainFor<MovieAdded>().ShouldHaveHandler<NetflixHandler>(x => x.Consume(new MovieAdded()));
     }
 
-
     [Fact]
     public void ignore_class_marked_as_NotHandler()
     {
@@ -81,11 +77,11 @@ public class find_handlers_with_the_default_handler_discovery : IntegrationConte
     public void find_handlers_from_wolverine_module_extensions()
     {
         _output.WriteLine(Host.Services.GetRequiredService<IWolverineRuntime>().Options.DescribeHandlerMatch(typeof(OrderHandler)));
-        
+
         chainFor<CreateOrder>().ShouldHaveHandler<OrderHandler>(x => x.HandleAsync(new CreateOrder()));
         chainFor<ShipOrder>().ShouldHaveHandler<OrderHandler>(x => x.HandleAsync(new ShipOrder()));
     }
-    
+
     [WolverineHandler]
     public static class AttributeWorker
     {
@@ -118,7 +114,6 @@ public class find_handlers_with_the_default_handler_discovery : IntegrationConte
         chainFor<MarkedMessage>().ShouldHaveHandler<MarkedWorker>(x => x.Handle(null));
     }
 }
-
 
 public class customized_finding : IntegrationContext
 {
@@ -158,7 +153,7 @@ public class customized_finding : IntegrationContext
                            // it's a handler
         public void DoWork(DifferentNameMessage message)
         {
-            
+
         }
     }
 
@@ -188,9 +183,7 @@ public interface IMovieSink
     void Listen(MovieAdded added);
 }
 
-public interface IMovieThing
-{
-}
+public interface IMovieThing;
 
 public class EpisodeWatcher : IMovieThing
 {
@@ -199,29 +192,17 @@ public class EpisodeWatcher : IMovieThing
     }
 }
 
-public abstract class MovieEvent : IMovieEvent
-{
-}
+public abstract class MovieEvent : IMovieEvent;
 
-public class MovieAdded : MovieEvent
-{
-}
+public class MovieAdded : MovieEvent;
 
-public class MovieRemoved : MovieEvent
-{
-}
+public class MovieRemoved : MovieEvent;
 
-public class EpisodeAvailable
-{
-}
+public class EpisodeAvailable;
 
-public class NewShow
-{
-}
+public class NewShow;
 
-public interface IMovieEvent
-{
-}
+public interface IMovieEvent;
 
 public class MovieWatcher
 {
@@ -230,9 +211,7 @@ public class MovieWatcher
     }
 }
 
-public class StaticClassMessage
-{
-}
+public class StaticClassMessage;
 
 public static class StaticClassHandler
 {
@@ -291,21 +270,13 @@ public class BlockbusterHandler
 
 #endregion
 
-public class Event1
-{
-}
+public class Event1;
 
-public class Event2
-{
-}
+public class Event2;
 
-public class Event3
-{
-}
+public class Event3;
 
-public class Event4
-{
-}
+public class Event4;
 
 public class EventConsumer
 {
@@ -313,4 +284,3 @@ public class EventConsumer
     {
     }
 }
-

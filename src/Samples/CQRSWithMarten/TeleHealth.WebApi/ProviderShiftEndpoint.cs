@@ -1,9 +1,7 @@
 using Marten;
 using Marten.AspNetCore;
-using Marten.Schema.Identity;
 using Microsoft.AspNetCore.Mvc;
 using TeleHealth.Common;
-using Wolverine.Attributes;
 using Wolverine.Http;
 using Wolverine.Marten;
 
@@ -35,7 +33,7 @@ public static class StartProviderShiftEndpoint
         return (board, provider, WolverineContinue.Result());
     }
 
-    [WolverineBefore]
+    // Validate or ValidateAsync() is considered by Wolverine to be a "before" method
     public static IResult Validate(Provider provider, Board board)
     {
         // Check if you can proceed to add the provider to the board
@@ -46,7 +44,7 @@ public static class StartProviderShiftEndpoint
             // the HTTP request
             return WolverineContinue.Result();
         }
-        
+
         // No soup for you!
         var problems = new ProblemDetails
         {
@@ -63,10 +61,10 @@ public static class StartProviderShiftEndpoint
         // and stop all other HTTP processing
         return Results.Problem(problems);
     }
-    
+
     [WolverinePost("/shift/start")]
     // In the tuple that's returned below,
-    // The first value of ShiftStartingResponse is assumed by Wolverine to be the 
+    // The first value of ShiftStartingResponse is assumed by Wolverine to be the
     // HTTP response body
     // The subsequent IStartStream value is executed as a side effect by Wolverine
     public static (ShiftStartingResponse, IStartStream) Create(StartProviderShift command, Board board, Provider provider)
@@ -77,7 +75,7 @@ public static class StartProviderShiftEndpoint
         return (new ShiftStartingResponse(op.StreamId), op);
     }
 }
-    
+
 public class ProviderShiftEndpoint
 {
     [WolverineGet("/shift/{shiftId}")]
@@ -96,11 +94,11 @@ public class ProviderShiftEndpoint
         {
             throw new Exception("The shift is not currently charting");
         }
-        
+
         return (
             // The HTTP response body
             new ChartingResponse(ProviderStatus.Paused),
-            
+
             // An event to be appended to the ProviderShift aggregate event stream
             new ChartingFinished()
         );

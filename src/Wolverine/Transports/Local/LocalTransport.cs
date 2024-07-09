@@ -15,7 +15,7 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
     private readonly Cache<string, LocalQueue> _queues;
 
     private Action<Type, IListenerConfiguration> _customization = (_, _) => { };
-    private Func<Type, string> _determineName = t => t.ToMessageTypeName().Replace("+", ".");
+    private Func<Type, string> _determineName = t => t.ToMessageTypeName().Replace('+', '.');
 
 
     public LocalTransport() : base(TransportConstants.Local, "Local (In Memory)")
@@ -162,9 +162,7 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
 
     internal LocalQueue FindOrCreateQueueForMessageTypeByConvention(Type messageType)
     {
-        var queueName = messageType.HasAttribute<LocalQueueAttribute>()
-            ? messageType.GetAttribute<LocalQueueAttribute>()!.QueueName
-            : _determineName(messageType);
+        var queueName = messageType.GetAttribute<LocalQueueAttribute>()?.QueueName ?? _determineName(messageType);
 
         if (queueName.IsEmpty())
         {

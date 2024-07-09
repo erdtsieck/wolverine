@@ -12,12 +12,12 @@ public class Bug_463_codegen_with_IQuerySession
     [Fact]
     public async Task can_compile_without_issue()
     {
-        var builder = WebApplication.CreateBuilder(Array.Empty<string>());
+        var builder = WebApplication.CreateBuilder([]);
         builder.Services.AddScoped<IUserService, UserService>();
 
         builder.Services.AddMarten(Servers.PostgresConnectionString)
             .IntegrateWithWolverine();
-        
+
         builder.Host.UseWolverine(opts =>
         {
             opts.Discovery.IncludeAssembly(GetType().Assembly);
@@ -69,7 +69,7 @@ public static class RequestPasswordResetEndpoint
     {
         return "got it";
     }
-    
+
     [WolverinePut($"/request-password-reset")]
     public static async Task RequestPasswordReset(
         RequestPasswordResetRequest request,

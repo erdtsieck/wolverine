@@ -29,7 +29,7 @@ public class posting_json : IntegrationContext
     }
 
     #endregion
-    
+
     [Fact]
     public async Task post_json_happy_path_with_star_slash_star()
     {
@@ -39,6 +39,39 @@ public class posting_json : IntegrationContext
         {
             x.Post.Json(new Question { One = 3, Two = 4 }).ToUrl("/question");
             x.WithRequestHeader("accept", "*/*");
+        });
+
+        var result = await response.ReadAsJsonAsync<ArithmeticResults>();
+
+        result.Product.ShouldBe(12);
+        result.Sum.ShouldBe(7);
+    }
+    
+    [Fact]
+    public async Task post_json_happy_path_with_no_accept()
+    {
+        // This test is using Alba to run an end to end HTTP request
+        // and interrogate the results
+        var response = await Scenario(x =>
+        {
+            x.Post.Json(new Question { One = 3, Two = 4 }).ToUrl("/question");
+        });
+
+        var result = await response.ReadAsJsonAsync<ArithmeticResults>();
+
+        result.Product.ShouldBe(12);
+        result.Sum.ShouldBe(7);
+    }
+
+    [Fact]
+    public async Task post_json_happy_path_with_accepts_problem_details()
+    {
+        // This test is using Alba to run an end to end HTTP request
+        // and interrogate the results
+        var response = await Scenario(x =>
+        {
+            x.Post.Json(new Question { One = 3, Two = 4 }).ToUrl("/question");
+            x.WithRequestHeader("accept", "application/problem+json");
         });
 
         var result = await response.ReadAsJsonAsync<ArithmeticResults>();

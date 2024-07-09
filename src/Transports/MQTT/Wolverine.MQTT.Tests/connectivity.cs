@@ -1,14 +1,10 @@
 using System.Text;
 using JasperFx.Core;
 using MQTTnet;
-using MQTTnet.Client;
 using MQTTnet.Extensions.ManagedClient;
 using MQTTnet.Internal;
 using MQTTnet.Protocol;
-using NSubstitute;
 using TestingSupport;
-using Wolverine.MQTT.Internals;
-using Wolverine.Runtime;
 using Xunit.Abstractions;
 
 namespace Wolverine.MQTT.Tests;
@@ -31,7 +27,7 @@ public class connectivity
             Logger = new XUnitLogger(_output, "MQTT")
         };
         await broker.StartAsync();
-        
+
         var managedClient = new MqttFactory().CreateManagedMqttClient();
 
         managedClient.ApplicationMessageReceivedAsync += e =>
@@ -39,7 +35,7 @@ public class connectivity
             _output.WriteLine(">> RECEIVED: " + e.ApplicationMessage.Topic + ", " + Encoding.Default.GetString(e.ApplicationMessage.PayloadSegment));
             return CompletedTask.Instance;
         };
-        
+
 
         await managedClient.StartAsync(new ManagedMqttClientOptionsBuilder().WithClientOptions(o => o.WithTcpServer("127.0.0.1", port)).Build());
 
@@ -51,7 +47,7 @@ public class connectivity
         await managedClient.EnqueueAsync(topic: "Step", payload: "2", MqttQualityOfServiceLevel.AtLeastOnce, retain: true);
 
         await Task.Delay(3.Seconds());
-                
+
         await managedClient.SubscribeAsync(topic: "xyz", qualityOfServiceLevel: MqttQualityOfServiceLevel.AtMostOnce);
         await managedClient.SubscribeAsync(topic: "abc", qualityOfServiceLevel: MqttQualityOfServiceLevel.AtMostOnce);
 

@@ -1,6 +1,5 @@
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Wolverine.Configuration;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
@@ -13,7 +12,6 @@ public interface IMessageRouteSource
     IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime);
     bool IsAdditive { get; }
 }
-
 
 internal class AgentMessages : IMessageRouteSource
 {
@@ -71,8 +69,6 @@ internal class MessageRoutingConventions : IMessageRouteSource
 
     public bool IsAdditive => true;
 }
-
-
 
 public partial class WolverineRuntime
 {

@@ -1,5 +1,4 @@
 using System.Data.Common;
-using System.Runtime.CompilerServices;
 using Wolverine.RDBMS.Polling;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
@@ -34,7 +33,7 @@ internal class PollDatabaseControlQueue : IDatabaseOperation, IAgentCommand
         return AgentCommands.Empty;
     }
 
-    public string Description { get; } = "Polling for new control messages";
+    public string Description => "Polling for new control messages";
 
     public void ConfigureCommand(DbCommandBuilder builder)
     {

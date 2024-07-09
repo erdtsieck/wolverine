@@ -3,15 +3,17 @@ using Marten.Events;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Persistence.Sagas;
 using Wolverine.Persistence.Sagas;
+using Wolverine.Postgresql.Transport;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
+using Wolverine.Util;
 
 namespace Wolverine.Marten;
 
 internal class MartenIntegration : IWolverineExtension, IEventForwarding
 {
     private readonly List<Action<WolverineOptions>> _actions = [];
-    
+
     /// <summary>
     ///     This directs the Marten integration to try to publish events out of the enrolled outbox
     ///     for a Marten session on SaveChangesAsync()
@@ -34,11 +36,17 @@ internal class MartenIntegration : IWolverineExtension, IEventForwarding
         });
 
         options.PublishWithMessageRoutingSource(EventRouter);
-        
+
         options.Policies.ForwardHandledTypes(new EventWrapperForwarder());
+
+        var transport = options.Transports.GetOrCreate<PostgresqlTransport>();
+        transport.TransportSchemaName = TransportSchemaName;
+        transport.MessageStorageSchemaName = MessageStorageSchemaName;
     }
 
     internal MartenEventRouter EventRouter { get; } = new();
+    public string TransportSchemaName { get; set; } = "wolverine_queues";
+    public string MessageStorageSchemaName { get; set; } = "public";
 
     EventForwardingTransform<T> IEventForwarding.SubscribeToEvent<T>()
     {
@@ -68,14 +76,22 @@ internal class MartenEventRouter : IMessageRouteSource
             {
                 return runtime.RoutingFor(wrappedType).Routes;
             }
-            
-            MessageRoute[] innerRoutes = Array.Empty<MessageRoute>();
+
+            MessageRoute[] innerRoutes = [];
             if (messageType.IsConcrete())
             {
                 var inner = runtime.RoutingFor(wrappedType);
-                innerRoutes = inner.Routes.OfType<MessageRoute>().ToArray();
+                innerRoutes = inner.Routes.Concat(new LocalRouting().FindRoutes(wrappedType, runtime)).OfType<MessageRoute>().ToArray();
             }
-            
+            else
+            {
+                innerRoutes = new ExplicitRouting().FindRoutes(wrappedType, runtime).OfType<MessageRoute>().ToArray();
+                if (!innerRoutes.Any())
+                {
+                    innerRoutes = new LocalRouting().FindRoutes(wrappedType, runtime).OfType<MessageRoute>().ToArray();
+                }
+            }
+
             // First look for explicit transformations
             var transformers = Transformers.Where(x => x.SourceType == wrappedType);
             var transformed = transformers.SelectMany(x =>
@@ -104,7 +120,7 @@ internal class EventUnwrappingMessageRoute<T> : TransformedMessageRoute<IEvent<T
     }
 }
 
-public interface IEventForwarding   
+public interface IEventForwarding
 {
     /// <summary>
     /// Subscribe to an event, but with a transformation. The transformed message will be

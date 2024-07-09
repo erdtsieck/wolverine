@@ -7,9 +7,7 @@ namespace DocumentationSamples;
 #region sample_local_queue_routed_message
 
 [LocalQueue("important")]
-public class ImportanceMessage
-{
-}
+public class ImportanceMessage;
 
 #endregion
 
@@ -26,7 +24,7 @@ public static class LocalQueueConfiguration
                 // routing that would take precedence over other conventional
                 // routing
                 opts.Policies.DisableConventionalLocalRouting();
-                
+
                 // Other routing conventions. Rabbit MQ? SQS?
             }).StartAsync();
 

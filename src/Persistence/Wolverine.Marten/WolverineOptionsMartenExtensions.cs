@@ -10,9 +10,12 @@ using Wolverine.RDBMS;
 using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
 using JasperFx.Core;
+using JasperFx.Core.IoC;
 using Marten.Storage;
 using Marten.Subscriptions;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
+using Weasel.Core;
 using Weasel.Postgresql;
 using Wolverine.Marten.Subscriptions;
 
@@ -38,17 +41,23 @@ public static class WolverineOptionsMartenExtensions
     ///     This does not have to be one of the tenant databases
     ///     Wolverine will try to use the master database from the Marten configuration when possible
     /// </param>
+    /// <param name="transportSchemaName">Optionally configure the schema name for any PostgreSQL queues</param>
+    /// <param name="autoCreate">Optionally override whether to automatically create message database schema objects. Defaults to <see cref="StoreOptions.AutoCreateSchemaObjects"/>.</param>
     /// <returns></returns>
     public static MartenServiceCollectionExtensions.MartenConfigurationExpression IntegrateWithWolverine(
-        this MartenServiceCollectionExtensions.MartenConfigurationExpression expression, string? schemaName = null,
-        string? masterDatabaseConnectionString = null, NpgsqlDataSource? masterDataSource = null)
+        this MartenServiceCollectionExtensions.MartenConfigurationExpression expression, 
+        string? schemaName = null,
+        string? masterDatabaseConnectionString = null, 
+        NpgsqlDataSource? masterDataSource = null, 
+        string? transportSchemaName = null,
+        AutoCreate? autoCreate = null)
     {
         if (schemaName.IsNotEmpty() && schemaName != schemaName.ToLowerInvariant())
         {
             throw new ArgumentOutOfRangeException(nameof(schemaName),
                 "The schema name must be in all lower case characters");
         }
-        
+
         expression.Services.AddScoped<IMartenOutbox, MartenOutbox>();
 
         expression.Services.AddSingleton<IMessageStore>(s =>
@@ -63,27 +72,36 @@ public static class WolverineOptionsMartenExtensions
             // TODO -- hacky. Need a way to expose this in Marten
             if (store.Tenancy.GetType().Name == "DefaultTenancy")
             {
-                return BuildSinglePostgresqlMessageStore(schemaName, store, runtime, logger);
+                return BuildSinglePostgresqlMessageStore(schemaName, autoCreate, store, runtime, logger);
             }
 
-            return BuildMultiTenantedMessageDatabase(schemaName, masterDatabaseConnectionString, masterDataSource, store, runtime, s);
+            return BuildMultiTenantedMessageDatabase(schemaName, autoCreate, masterDatabaseConnectionString, masterDataSource, store, runtime, s);
         });
 
-        expression.Services.AddSingleton<IDatabaseSource, MartenMessageDatabaseDiscovery>();
+        expression.Services.AddType(typeof(IDatabaseSource), typeof(MartenMessageDatabaseDiscovery),
+            ServiceLifetime.Singleton);
 
-        expression.Services.AddSingleton<IWolverineExtension>(new MartenIntegration());
+        expression.Services.AddSingleton<IWolverineExtension>(new MartenIntegration
+        {
+            TransportSchemaName = transportSchemaName ?? schemaName ?? "wolverine_queues",
+            MessageStorageSchemaName = schemaName ?? "public"
+        });
+
         expression.Services.AddSingleton<OutboxedSessionFactory>();
 
         return expression;
     }
 
-    internal static NpgsqlDataSource findMasterDataSource(DocumentStore store, IWolverineRuntime runtime,
-        DatabaseSettings masterSettings, IServiceProvider container)
+    internal static NpgsqlDataSource findMasterDataSource(
+        DocumentStore store, 
+        IWolverineRuntime runtime,
+        DatabaseSettings masterSettings, 
+        IServiceProvider container)
     {
         if (store.Tenancy is ITenancyWithMasterDatabase m) return m.TenantDatabase.DataSource;
 
         if (masterSettings.DataSource != null) return (NpgsqlDataSource)masterSettings.DataSource;
-        
+
         if (masterSettings.ConnectionString.IsNotEmpty()) return NpgsqlDataSource.Create(masterSettings.ConnectionString);
 
         var source = container.GetService<NpgsqlDataSource>();
@@ -93,8 +111,12 @@ public static class WolverineOptionsMartenExtensions
                    "There is no configured connectivity for the required master PostgreSQL message database");
     }
 
-    internal static IMessageStore BuildMultiTenantedMessageDatabase(string schemaName,
-        string? masterDatabaseConnectionString, NpgsqlDataSource? masterDataSource, DocumentStore store,
+    internal static IMessageStore BuildMultiTenantedMessageDatabase(
+        string schemaName,
+        AutoCreate? autoCreate,
+        string? masterDatabaseConnectionString, 
+        NpgsqlDataSource? masterDataSource, 
+        DocumentStore store,
         IWolverineRuntime runtime,
         IServiceProvider serviceProvider)
     {
@@ -102,6 +124,7 @@ public static class WolverineOptionsMartenExtensions
         {
             ConnectionString = masterDatabaseConnectionString,
             SchemaName = schemaName,
+            AutoCreate = autoCreate ?? store.Options.AutoCreateSchemaObjects,
             IsMaster = true,
             CommandQueuesEnabled = true,
             DataSource = masterDataSource
@@ -115,19 +138,24 @@ public static class WolverineOptionsMartenExtensions
         };
 
 
-        var source = new MartenMessageDatabaseSource(schemaName, store, runtime);
-        
+        var source = new MartenMessageDatabaseSource(schemaName, autoCreate ?? store.Options.AutoCreateSchemaObjects, store, runtime);
+
         master.Initialize(runtime);
 
         return new MultiTenantedMessageDatabase(master, runtime, source);
     }
 
-    internal static IMessageStore BuildSinglePostgresqlMessageStore(string schemaName, DocumentStore store,
-        IWolverineRuntime runtime, ILogger<PostgresqlMessageStore> logger)
+    internal static IMessageStore BuildSinglePostgresqlMessageStore(
+        string schemaName, 
+        AutoCreate? autoCreate,
+        DocumentStore store,
+        IWolverineRuntime runtime, 
+        ILogger<PostgresqlMessageStore> logger)
     {
         var settings = new DatabaseSettings
         {
             SchemaName = schemaName,
+            AutoCreate = autoCreate ?? store.Options.AutoCreateSchemaObjects,
             IsMaster = true,
             ScheduledJobLockId = $"{schemaName ?? "public"}:scheduled-jobs".GetDeterministicHashCode()
         };
@@ -136,7 +164,6 @@ public static class WolverineOptionsMartenExtensions
 
         return new PostgresqlMessageStore(settings, runtime.Options.Durability, dataSource, logger);
     }
-
 
     internal static MartenIntegration? FindMartenIntegration(this IServiceCollection services)
     {
@@ -166,7 +193,7 @@ public static class WolverineOptionsMartenExtensions
 
         return expression;
     }
-    
+
     /// <summary>
     ///     Enable publishing of events to Wolverine message routing when captured in Marten sessions that are enrolled in a
     ///     Wolverine outbox. This requires usage of Marten transactional middleware within Wolverine, and makes no guarantees
@@ -202,13 +229,26 @@ public static class WolverineOptionsMartenExtensions
         this MartenServiceCollectionExtensions.MartenConfigurationExpression expression,
         IWolverineSubscription subscription)
     {
-        expression.Services.ConfigureMarten((sp, opts) =>
+        expression.Services.SubscribeToEvents(subscription);
+        return expression;
+    }
+
+    /// <summary>
+    /// Register a custom subscription that will process a batch of Marten events at a time with
+    /// a user defined action
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="subscription"></param>
+    /// <returns></returns>
+    public static IServiceCollection SubscribeToEvents(this IServiceCollection services, IWolverineSubscription subscription)
+    {
+        services.ConfigureMarten((sp, opts) =>
         {
             var runtime = sp.GetRequiredService<IWolverineRuntime>();
             opts.Projections.Subscribe(new WolverineSubscriptionRunner(subscription, runtime));
         });
-        
-        return expression;
+
+        return services;
     }
     
     /// <summary>
@@ -221,11 +261,27 @@ public static class WolverineOptionsMartenExtensions
     public static MartenServiceCollectionExtensions.MartenConfigurationExpression SubscribeToEventsWithServices<T>(
         this MartenServiceCollectionExtensions.MartenConfigurationExpression expression, ServiceLifetime lifetime) where T : class, IWolverineSubscription
     {
+        expression.Services.SubscribeToEventsWithServices<T>(lifetime);
+
+        return expression;
+    }
+
+    /// <summary>
+    /// <param name="expression"></param>
+    /// <param name="lifetime">Service lifetime of the subscription class within the application's IoC container
+    /// </summary>
+    /// <param name="lifetime"></param>
+    /// <param name="services"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public static IServiceCollection SubscribeToEventsWithServices<T>(this IServiceCollection services, ServiceLifetime lifetime)
+        where T : class, IWolverineSubscription
+    {
         switch (lifetime)
         {
             case ServiceLifetime.Singleton:
-                expression.Services.AddSingleton<T>();
-                expression.Services.ConfigureMarten((sp, opts) =>
+                services.AddSingleton<T>();
+                services.ConfigureMarten((sp, opts) =>
                 {
                     var subscription = sp.GetRequiredService<T>();
                     var runtime = sp.GetRequiredService<IWolverineRuntime>();
@@ -234,8 +290,8 @@ public static class WolverineOptionsMartenExtensions
                 break;
 
             default:
-                expression.Services.AddScoped<T>();
-                expression.Services.ConfigureMarten((sp, opts) =>
+                services.AddScoped<T>();
+                services.ConfigureMarten((sp, opts) =>
                 {
                     var runtime = sp.GetRequiredService<IWolverineRuntime>();
                     opts.Projections.Subscribe(new ScopedWolverineSubscriptionRunner<T>(sp, runtime));
@@ -243,9 +299,9 @@ public static class WolverineOptionsMartenExtensions
                 break;
         }
 
-        return expression;
+        return services;
     }
-    
+
     /// <summary>
     /// Create a subscription for Marten events to be processed in strict order by Wolverine
     /// </summary>
@@ -258,23 +314,38 @@ public static class WolverineOptionsMartenExtensions
         this MartenServiceCollectionExtensions.MartenConfigurationExpression expression,
         string subscriptionName, Action<ISubscriptionOptions>? configure = null)
     {
+        expression.Services.ProcessEventsWithWolverineHandlersInStrictOrder(subscriptionName, configure);
+
+        return expression;
+    }
+
+    /// <summary>
+    /// Create a subscription for Marten events to be processed in strict order by Wolverine
+    /// </summary>
+    /// <param name="expression"></param>
+    /// <param name="subscriptionName">Descriptive name for this event subscription for tracking with Marten</param>
+    /// <param name="configure">Fine tune the asynchronous daemon behavior of this subscription</param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public static IServiceCollection ProcessEventsWithWolverineHandlersInStrictOrder(this IServiceCollection services,
+        string subscriptionName, Action<ISubscriptionOptions>? configure)
+    {
         if (subscriptionName.IsEmpty()) throw new ArgumentNullException(nameof(subscriptionName));
-        
-        expression.Services.ConfigureMarten((sp, opts) =>
+        services.ConfigureMarten((sp, opts) =>
         {
             var runtime = sp.GetRequiredService<IWolverineRuntime>();
 
             var invoker = new InlineInvoker(subscriptionName, runtime);
             var subscription = new WolverineSubscriptionRunner(invoker, runtime);
-            
+
             configure?.Invoke(subscription);
-            
+
             opts.Projections.Subscribe(subscription);
         });
-        
-        return expression;
+
+        return services;
     }
-    
+
     /// <summary>
     /// Relay events captured by Marten to Wolverine message publishing
     /// </summary>
@@ -287,20 +358,33 @@ public static class WolverineOptionsMartenExtensions
         this MartenServiceCollectionExtensions.MartenConfigurationExpression expression,
         string subscriptionName, Action<IPublishingRelay>? configure = null)
     {
+        expression.Services.PublishEventsToWolverine(subscriptionName, configure);
+
+        return expression;
+    }
+
+    /// <summary>
+    /// Relay events captured by Marten to Wolverine message publishing
+    /// </summary>
+    /// <param name="expression"></param>
+    /// <param name="subscriptionName">Descriptive name for this event subscription for tracking with Marten</param>
+    /// <param name="configure">Fine tune the asynchronous daemon behavior of this subscription</param>
+    /// <exception cref="ArgumentNullException"></exception>
+    public static IServiceCollection PublishEventsToWolverine(this IServiceCollection services, string subscriptionName, Action<IPublishingRelay>? configure)
+    {
         if (subscriptionName.IsEmpty()) throw new ArgumentNullException(nameof(subscriptionName));
-        
-        expression.Services.ConfigureMarten((sp, opts) =>
+        services.ConfigureMarten((sp, opts) =>
         {
             var runtime = sp.GetRequiredService<IWolverineRuntime>();
 
             var relay = new PublishingRelay(subscriptionName);
             configure?.Invoke(relay);
-            
+
             var subscription = new WolverineSubscriptionRunner(relay, runtime);
-            
+
             opts.Projections.Subscribe(subscription);
         });
-        
-        return expression;
+
+        return services;
     }
 }

@@ -1,5 +1,4 @@
 using JasperFx.Core.Reflection;
-using Microsoft.Extensions.Options;
 using Wolverine.Configuration;
 using Wolverine.MQTT.Internals;
 
@@ -15,7 +14,7 @@ public class MqttTransportExpression
         _transport = transport;
         _options = options;
     }
-    
+
     /// <summary>
     ///     Apply a policy to all listening endpoints
     /// </summary>
@@ -38,7 +37,7 @@ public class MqttTransportExpression
             var configuration = new MqttListenerConfiguration(e);
             configure(configuration);
 
-            configuration!.As<IDelayedEndpointConfiguration>().Apply();
+            configuration.As<IDelayedEndpointConfiguration>().Apply();
         });
 
         _options.Policies.Add(policy);
@@ -68,7 +67,7 @@ public class MqttTransportExpression
             var configuration = new MqttSubscriberConfiguration(e);
             configure(configuration);
 
-            configuration!.As<IDelayedEndpointConfiguration>().Apply();
+            configuration.As<IDelayedEndpointConfiguration>().Apply();
         });
 
         _options.Policies.Add(policy);

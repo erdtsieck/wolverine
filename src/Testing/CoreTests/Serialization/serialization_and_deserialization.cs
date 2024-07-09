@@ -1,8 +1,6 @@
-﻿using System;
-using JasperFx.Core;
+﻿using JasperFx.Core;
 using TestingSupport;
 using Wolverine.Runtime.Serialization;
-using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Serialization;
@@ -123,7 +121,6 @@ public class serialization_and_deserialization_of_single_message
         incoming.Data.ShouldHaveTheSameElementsAs(outgoing.Data);
     }
 
-
     [Fact]
     public void deliver_by_with_value()
     {
@@ -197,7 +194,6 @@ public class serialization_and_deserialization_of_single_message
     {
         incoming.SentAt.ShouldBe(outgoing.SentAt);
     }
-
 
     [Fact]
     public void source()

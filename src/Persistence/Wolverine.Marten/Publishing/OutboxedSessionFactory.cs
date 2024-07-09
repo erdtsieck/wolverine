@@ -5,9 +5,32 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Marten.Publishing;
 
+public class OutboxedSessionFactory<T> : OutboxedSessionFactory, ISessionFactory where T : IDocumentStore
+{
+    private readonly T _store;
+
+    // TODO -- make this use the lightweight version
+    public OutboxedSessionFactory(ISessionFactory factory, IWolverineRuntime runtime, T store) : base(factory, runtime, store)
+    {
+        _store = store;
+        _factory = this;
+    }
+
+    public IQuerySession QuerySession()
+    {
+        return _store.QuerySession();
+
+    }
+
+    public IDocumentSession OpenSession()
+    {
+        return _store.LightweightSession();
+    }
+}
+
 public class OutboxedSessionFactory
 {
-    private readonly ISessionFactory _factory;
+    protected ISessionFactory _factory;
     private readonly IDocumentStore _store;
     private readonly bool _shouldPublishEvents;
 
@@ -37,9 +60,9 @@ public class OutboxedSessionFactory
             _builder = c =>
             {
                 var tenantId = c.Envelope?.TenantId ?? c.TenantId;
-                
-                return tenantId.IsEmpty() 
-                    ? _factory.OpenSession() 
+
+                return tenantId.IsEmpty()
+                    ? _factory.OpenSession()
                     : _store.LightweightSession(tenantId);
             };
         }
@@ -50,26 +73,26 @@ public class OutboxedSessionFactory
     public IQuerySession QuerySession(MessageContext context)
     {
         var tenantId = context.Envelope?.TenantId ?? context.TenantId;
-        return tenantId.IsNotEmpty() 
-            ? _store.QuerySession(tenantId) 
+        return tenantId.IsNotEmpty()
+            ? _store.QuerySession(tenantId)
             : _factory.QuerySession();
     }
-    
+
     /// <summary>Build new instances of IQuerySession on demand</summary>
     /// <returns></returns>
     public IQuerySession QuerySession(MessageContext context, string? tenantId)
     {
         tenantId ??= context.Envelope?.TenantId;
-        return tenantId.IsNotEmpty() 
-            ? _store.QuerySession(tenantId) 
+        return tenantId.IsNotEmpty()
+            ? _store.QuerySession(tenantId)
             : _factory.QuerySession();
     }
-    
+
     public IQuerySession QuerySession(IMessageContext context)
     {
         var tenantId = context.Envelope?.TenantId ?? context.TenantId;
-        return tenantId.IsNotEmpty() 
-            ? _store.QuerySession(tenantId) 
+        return tenantId.IsNotEmpty()
+            ? _store.QuerySession(tenantId)
             : _factory.QuerySession();
     }
 
@@ -83,7 +106,7 @@ public class OutboxedSessionFactory
 
         return session;
     }
-    
+
     /// <summary>Build new instances of IDocumentSession on demand</summary>
     /// <returns></returns>
     public IDocumentSession OpenSession(MessageContext context, string? tenantId)

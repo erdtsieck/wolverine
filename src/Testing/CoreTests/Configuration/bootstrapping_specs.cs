@@ -1,8 +1,7 @@
-using System;
-using System.Linq;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core.Reflection;
 using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -18,9 +17,9 @@ using Xunit;
 
 namespace CoreTests.Configuration;
 
-public class BootstrappingTests : IntegrationContext
+public class bootstrapping_specs : IntegrationContext
 {
-    public BootstrappingTests(DefaultApp @default) : base(@default)
+    public bootstrapping_specs(DefaultApp @default) : base(@default)
     {
     }
 
@@ -32,13 +31,12 @@ public class BootstrappingTests : IntegrationContext
         var container = (IContainer)Host.Services;
         container.Model.For<WolverineSupplementalCodeFiles>()
             .Default.Lifetime.ShouldBe(ServiceLifetime.Singleton);
-        
+
         container.GetAllInstances<ICodeFileCollection>()
             .OfType<WolverineSupplementalCodeFiles>()
             .Any()
             .ShouldBeTrue();
     }
-
 
     [Fact]
     public void can_apply_a_wrapper_to_all_chains()
@@ -69,6 +67,30 @@ public class BootstrappingTests : IntegrationContext
 
         chainFor<Message1>()
             .ShouldHaveHandler<SpecialServiceUsingThing>(x => x.Handle(null, null));
+    }
+
+    [Fact]
+    public async Task bootstrap_with_extension_finding_disabled()
+    {
+        #region sample_disabling_assembly_scanning
+
+        using var host = await Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.DisableConventionalDiscovery();
+            })
+            
+            // Note that this isn't part of UseWolverine()
+            .DisableWolverineExtensionScanning()
+            
+            .StartAsync();
+
+        #endregion
+
+        var container = host.Services.As<IContainer>();
+        
+        // IModuleService would be registered by the Module1Extension
+        container.Model.HasRegistrationFor<IModuleService>().ShouldBeFalse();
     }
 
     [Fact]
@@ -117,7 +139,6 @@ public class BootstrappingTests : IntegrationContext
         Host.Get(serviceType)
             .ShouldNotBeNull();
     }
-    
 
     [Fact]
     public void handler_graph_already_has_the_scheduled_send_handler()
@@ -137,14 +158,9 @@ public class BootstrappingTests : IntegrationContext
         public IMessageContext Context { get; }
     }
 
+    public class AppsModuleService : IModuleService;
 
-    public class AppsModuleService : IModuleService
-    {
-    }
-
-    public class SomeMessage
-    {
-    }
+    public class SomeMessage;
 
     public class SomeHandler
     {

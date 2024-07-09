@@ -22,13 +22,13 @@ public class logging_configuration : IntegrationContext
 
 #region sample_using_Wolverine_Logging_attribute
 
-public class QuietMessage{}
+public class QuietMessage;
 
 public class QuietMessageHandler
 {
     [WolverineLogging(
-        telemetryEnabled:false, 
-        successLogLevel: LogLevel.None, 
+        telemetryEnabled:false,
+        successLogLevel: LogLevel.None,
         executionLogLevel:LogLevel.Trace)]
     public void Handle(QuietMessage message)
     {

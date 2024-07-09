@@ -31,10 +31,10 @@ public class NServiceBusFixture : IAsyncLifetime
 
             opts.ListenToRabbitQueue("wolverine")
                 .UseNServiceBusInterop()
-                
+
 
                 .UseForReplies();
-            
+
             // This facilitates messaging from NServiceBus (or MassTransit) sending as interface
             // types, whereas Wolverine only wants to deal with concrete types
             opts.Policies.RegisterInteropMessageAssembly(typeof(IInterfaceMessage).Assembly);
@@ -42,7 +42,7 @@ public class NServiceBusFixture : IAsyncLifetime
 
         #endregion
 
-        NServiceBus = await Program.CreateHostBuilder(Array.Empty<string>())
+        NServiceBus = await Program.CreateHostBuilder([])
             .StartAsync();
     }
 

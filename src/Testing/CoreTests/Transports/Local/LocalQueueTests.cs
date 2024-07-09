@@ -1,4 +1,3 @@
-using System;
 using CoreTests.Runtime;
 using JasperFx.Core;
 using Wolverine.Configuration;
@@ -63,7 +62,6 @@ public class LocalQueueTests
 
         endpoint.CircuitBreakerOptions.ShouldNotBeNull();
     }
-
 
     [Fact]
     public void configure_circuit_breaker_options_with_explicit_config()

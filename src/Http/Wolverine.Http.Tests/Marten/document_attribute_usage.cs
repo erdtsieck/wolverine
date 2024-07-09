@@ -13,9 +13,29 @@ public class document_attribute_usage : IntegrationContext
     [Fact]
     public async Task returns_404_on_id_miss()
     {
+        // Using Alba to run a request for a non-existent
+        // Invoice document
         await Scenario(x =>
         {
             x.Get.Url("/invoices/" + Guid.NewGuid());
+            x.StatusCodeShouldBe(404);
+        });
+    }
+
+    [Fact]
+    public async Task returns_404_when_soft_deleted()
+    {
+        var invoice = new Invoice();
+        using var session = Store.LightweightSession();
+        session.Store(invoice);
+        await session.SaveChangesAsync();
+        
+        session.Delete(invoice);
+        await session.SaveChangesAsync();
+
+        await Scenario(x =>
+        {
+            x.Get.Url("/invoices/soft-delete/" + invoice.Id);
             x.StatusCodeShouldBe(404);
         });
     }
@@ -55,7 +75,7 @@ public class document_attribute_usage : IntegrationContext
     public async Task use_explicit_path_argument()
     {
         var invoice = new Invoice();
-        using var session = Store.LightweightSession();
+        await using var session = Store.LightweightSession();
         session.Store(invoice);
         await session.SaveChangesAsync();
 

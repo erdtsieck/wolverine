@@ -1,12 +1,8 @@
-using JasperFx.Core;
 using Marten;
 using Wolverine;
 using Wolverine.Http;
-using Wolverine.Marten;
 
 namespace MultiTenantedTodoWebService;
-
-
 
 #region sample_Todo
 
@@ -42,7 +38,7 @@ public static class TodoEndpoints
     #endregion
 
     [WolverineGet("/todoitems/{tenant}/complete")]
-    public static Task<IReadOnlyList<Todo>> GetComplete(IQuerySession session) 
+    public static Task<IReadOnlyList<Todo>> GetComplete(IQuerySession session)
         => session
             .Query<Todo>()
             .Where(x => x.IsComplete)
@@ -62,18 +58,18 @@ public static class TodoEndpoints
     public static CreationResponse<TodoCreated> Create(
         // Only need this to express the location of the newly created
         // Todo object
-        string tenant, 
-        CreateTodo command, 
+        string tenant,
+        CreateTodo command,
         IDocumentSession session)
     {
         var todo = new Todo { Name = command.Name };
-        
+
         // Marten itself sets the Todo.Id identity
         // in this call
-        session.Store(todo); 
+        session.Store(todo);
 
         // New syntax in Wolverine.HTTP 1.7
-        // Helps Wolverine 
+        // Helps Wolverine
         return CreationResponse.For(new TodoCreated(todo.Id), $"/todoitems/{tenant}/{todo.Id}");
     }
 
@@ -84,14 +80,14 @@ public static class TodoEndpoints
     // While this is still valid....
     [WolverineDelete("/todoitems/{tenant}/longhand")]
     public static async Task Delete(
-        string tenant, 
-        DeleteTodo command, 
+        string tenant,
+        DeleteTodo command,
         IMessageBus bus)
     {
         // Invoke inline for the specified tenant
         await bus.InvokeForTenantAsync(tenant, command);
     }
-    
+
     // Wolverine.HTTP 1.7 added multi-tenancy support so
     // this short hand works without the extra jump through
     // "Wolverine as Mediator"
@@ -108,14 +104,10 @@ public static class TodoEndpoints
     #endregion
 }
 
-
 public static class TodoCreatedHandler
 {
     public static void Handle(DeleteTodo command, IDocumentSession session)
     {
         session.Delete<Todo>(command.Id);
     }
- 
 }
-
-

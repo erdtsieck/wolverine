@@ -29,12 +29,12 @@ using var host = await Host.CreateDefaultBuilder()
     {
         // Surely plenty of other configuration for Wolverine...
 
-        // This *temporary* line of code will write out a full report about why or 
+        // This *temporary* line of code will write out a full report about why or
         // why not Wolverine is finding this handler and its candidate handler messages
         Console.WriteLine(opts.DescribeHandlerMatch(typeof(MyMissingMessageHandler)));
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscoverySamples.cs#L156-L168' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_describe_handler_match' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscoverySamples.cs#L148-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_describe_handler_match' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Even if the report itself isn't exactly clear to you, using this textual report in a Wolverine issue or
@@ -43,7 +43,7 @@ within the [Critter Stack Discord](https://discord.gg/wBkZGpe3) group will help 
 ## Assembly Discovery
 
 ::: tip
-The handler discovery uses the `JasperFx.TypeDiscovery` library for type scanning that is shared with several other JasperFx projects. 
+The handler discovery uses the type scanning functionality into `JasperFx.Core` library for type scanning that is shared with several other JasperFx projects. 
 :::
 
 The first issue is which assemblies will Wolverine look through to find candidate handlers? By default, Wolverine is looking through what
@@ -108,7 +108,7 @@ using var host = Host.CreateDefaultBuilder()
 Wolverine does not support any kind of open generic types for message handlers and has no intentions of ever doing so.
 :::
 
-By default, Wolverine is looking for public, concrete classes that follow these rules:
+By default, Wolverine is looking for public, concrete classes that follow any of these rules:
 
 * Implements the `Wolverine.IWolverineHandler` interface
 * Is decorated with the `[Wolverine.WolverineHandler]` attribute
@@ -205,6 +205,11 @@ See [Stateful Sagas](/guide/durability/sagas) for more information.
 
 ## Disabling Conventional Discovery
 
+::: warning
+Note that disabling conventional discovery will *also* disable any customizations you may have made to the 
+conventional handler discovery
+:::
+
 You can completely turn off any automatic discovery of message handlers through type scanning by
 using this syntax in your `WolverineOptions`:
 
@@ -218,7 +223,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.DisableConventionalDiscovery();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L208-L217' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_explicithandlerdiscovery' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L205-L214' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_explicithandlerdiscovery' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Explicitly Ignoring Methods
@@ -275,7 +280,7 @@ public class BlockbusterHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/find_handlers_with_the_default_handler_discovery.cs#L244-L292' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverineignoreattribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/find_handlers_with_the_default_handler_discovery.cs#L223-L271' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverineignoreattribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -315,5 +320,5 @@ using var host = await Host.CreateDefaultBuilder()
             .IncludeType<SimpleHandler>();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscoverySamples.cs#L128-L151' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customhandlerapp' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscoverySamples.cs#L120-L143' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customhandlerapp' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

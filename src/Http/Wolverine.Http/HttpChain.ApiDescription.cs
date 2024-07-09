@@ -49,7 +49,6 @@ public class WolverineActionDescriptor : ControllerActionDescriptor
     /// The raw Wolverine model of the HTTP endpoint
     /// </summary>
     public HttpChain Chain { get; }
-
 }
 
 public partial class HttpChain
@@ -174,7 +173,7 @@ public partial class HttpChain
 
     private void fillRequestType(ApiDescription apiDescription)
     {
-        if (RequestType != null)
+        if (HasRequestType)
         {
             var parameterDescription = new ApiParameterDescription
             {
@@ -265,8 +264,7 @@ internal class EndpointModelMetadata : ModelMetadata
         IsBindingAllowed = true;
     }
 
-    public override IReadOnlyDictionary<object, object> AdditionalValues { get; } =
-        ImmutableDictionary<object, object>.Empty;
+    public override IReadOnlyDictionary<object, object> AdditionalValues => ImmutableDictionary<object, object>.Empty;
 
     public override string? BinderModelName { get; }
     public override Type? BinderType { get; }
@@ -296,7 +294,7 @@ internal class EndpointModelMetadata : ModelMetadata
     public override string? NullDisplayText { get; }
     public override int Order { get; }
     public override string? Placeholder { get; }
-    public override ModelPropertyCollection Properties { get; } = new(Enumerable.Empty<ModelMetadata>());
+    public override ModelPropertyCollection Properties { get; } = new([]);
     public override IPropertyFilterProvider? PropertyFilterProvider { get; }
     public override Func<object, object>? PropertyGetter { get; }
     public override Action<object, object?>? PropertySetter { get; }

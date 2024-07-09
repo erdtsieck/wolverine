@@ -1,4 +1,3 @@
-using System.Data;
 using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -8,8 +7,6 @@ using Lamar;
 using Marten;
 using Marten.Events;
 using Microsoft.AspNetCore.Http;
-using Wolverine.Configuration;
-using Wolverine.Http.CodeGen;
 using Wolverine.Marten;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Publishing;
@@ -27,7 +24,7 @@ public class AggregateAttribute : HttpChainParameterAttribute
     {
         return stream.Aggregate == null ? Results.NotFound() : WolverineContinue.Result();
     }
-    
+
     public string? RouteOrParameterName { get; }
 
     public AggregateAttribute()
@@ -57,7 +54,7 @@ public class AggregateAttribute : HttpChainParameterAttribute
     public override Variable Modify(HttpChain chain, ParameterInfo parameter, IContainer container)
     {
         chain.Metadata.Produces(404);
-        
+
         AggregateType = parameter.ParameterType;
         var store = container.GetInstance<IDocumentStore>();
         var idType = store.Options.Events.StreamIdentity == StreamIdentity.AsGuid ? typeof(Guid) : typeof(string);
@@ -76,18 +73,18 @@ public class AggregateAttribute : HttpChainParameterAttribute
         chain.Middleware.Add(sessionCreator);
 
         chain.Middleware.Add(new EventStoreFrame());
-        var loader = typeof(LoadAggregateFrame<>).CloseAndBuildAs<Frame>(this, AggregateType!);
+        var loader = typeof(LoadAggregateFrame<>).CloseAndBuildAs<Frame>(this, AggregateType);
         chain.Middleware.Add(loader);
- 
+
         // Use the active document session as an IQuerySession instead of creating a new one
         chain.Method.TrySetArgument(new Variable(typeof(IQuerySession), sessionCreator.ReturnVariable!.Usage));
-        
+
         AggregateHandlerAttribute.DetermineEventCaptureHandling(chain, chain.Method, AggregateType);
-        
+
         AggregateHandlerAttribute.ValidateMethodSignatureForEmittedEvents(chain, chain.Method, chain);
-        
+
         var aggregate = AggregateHandlerAttribute.RelayAggregateToHandlerMethod(loader.Creates.Single(), chain.Method, AggregateType);
-        
+
         chain.Postprocessors.Add(MethodCall.For<IDocumentSession>(x => x.SaveChangesAsync(default)));
 
         return aggregate;
@@ -130,12 +127,12 @@ public class AggregateAttribute : HttpChainParameterAttribute
         {
             return v2;
         }
-        
+
         if (chain.FindRouteVariable(idType, "id", out var v3))
         {
             return v3;
         }
-    
+
         return null;
     }
 
@@ -150,13 +147,13 @@ public class AggregateAttribute : HttpChainParameterAttribute
         var stream = await session.Events.FetchForExclusiveWriting<T>(id, cancellationToken);
         return (stream, stream.Aggregate == null ? Results.NotFound() : WolverineContinue.Result());
     }
-    
+
     public static async Task<(IEventStream<T>, IResult)> FetchForWriting<T>(Guid id, long version, IDocumentSession session, CancellationToken cancellationToken) where T : class
     {
         var stream = await session.Events.FetchForWriting<T>(id, version, cancellationToken);
         return (stream, stream.Aggregate == null ? Results.NotFound() : WolverineContinue.Result());
     }
-    
+
     public static async Task<(IEventStream<T>, IResult)> FetchForExclusiveWriting<T>(string key, IDocumentSession session, CancellationToken cancellationToken) where T : class
     {
         var stream = await session.Events.FetchForExclusiveWriting<T>(key, cancellationToken);
@@ -168,7 +165,7 @@ public class AggregateAttribute : HttpChainParameterAttribute
         var stream = await session.Events.FetchForExclusiveWriting<T>(key, cancellationToken);
         return (stream, stream.Aggregate == null ? Results.NotFound() : WolverineContinue.Result());
     }
-    
+
     public static async Task<(IEventStream<T>, IResult)> FetchForWriting<T>(string key, long version, IDocumentSession session, CancellationToken cancellationToken) where T : class
     {
         var stream = await session.Events.FetchForWriting<T>(key, version, cancellationToken);

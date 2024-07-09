@@ -63,9 +63,7 @@ namespace DocumentationSamples
     #endregion
 
 
-    public interface IEmailService
-    {
-    }
+    public interface IEmailService;
 
 
     #region sample_simplest_possible_handler
@@ -91,7 +89,6 @@ namespace DocumentationSamples
 
         #endregion
     }
-
 
     namespace One
     {

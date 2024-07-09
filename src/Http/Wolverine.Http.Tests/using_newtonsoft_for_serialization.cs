@@ -17,12 +17,12 @@ public class using_newtonsoft_for_serialization
     {
         #region sample_use_newtonsoft_for_http_serialization
 
-        var builder = WebApplication.CreateBuilder(Array.Empty<string>());
+        var builder = WebApplication.CreateBuilder([]);
         builder.Services.AddScoped<IUserService, UserService>();
 
         builder.Services.AddMarten(Servers.PostgresConnectionString)
             .IntegrateWithWolverine();
-        
+
         builder.Host.UseWolverine(opts =>
         {
             opts.Discovery.IncludeAssembly(GetType().Assembly);
@@ -46,7 +46,7 @@ public class using_newtonsoft_for_serialization
         });
 
         var text = result.ReadAsText();
-        
+
         text.ShouldBe("{\"$type\":\"Wolverine.Http.Tests.MathResponse, Wolverine.Http.Tests\",\"Sum\":7,\"Product\":12}");
 
     }

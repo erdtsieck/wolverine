@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
@@ -17,30 +18,51 @@ namespace Wolverine.Http;
 
 public partial class HttpChain
 {
+    /// <summary>
+    /// Used to cache variables like for IFormFile or IFormFileCollection
+    /// that might be reused between middleware and handler methods, but should
+    /// not be created more than once
+    /// </summary>
+    public List<Variable> ChainVariables { get; } = new();
+    
     internal string? SourceCode => _generatedType?.SourceCode;
+
+    private readonly object _locker = new();
 
     void ICodeFile.AssembleTypes(GeneratedAssembly assembly)
     {
-        assembly.UsingNamespaces!.Fill(typeof(RoutingHttpContextExtensions).Namespace);
-        assembly.UsingNamespaces.Fill("System.Linq");
-        assembly.UsingNamespaces.Fill("System");
+        lock (_locker)
+        {
+            assembly.UsingNamespaces!.Fill(typeof(RoutingHttpContextExtensions).Namespace);
+            assembly.UsingNamespaces.Fill("System.Linq");
+            assembly.UsingNamespaces.Fill("System");
 
-        _generatedType = assembly.AddType(_fileName!, typeof(HttpHandler));
+            _generatedType = assembly.AddType(_fileName!, typeof(HttpHandler));
 
-        assembly.ReferenceAssembly(Method.HandlerType.Assembly);
-        assembly.ReferenceAssembly(typeof(HttpContext).Assembly);
-        assembly.ReferenceAssembly(typeof(HttpChain).Assembly);
+            assembly.ReferenceAssembly(Method.HandlerType.Assembly);
+            assembly.ReferenceAssembly(typeof(HttpContext).Assembly);
+            assembly.ReferenceAssembly(typeof(HttpChain).Assembly);
 
-        var handleMethod = _generatedType.MethodFor(nameof(HttpHandler.Handle));
+            var handleMethod = _generatedType.MethodFor(nameof(HttpHandler.Handle));
 
-        handleMethod.DerivedVariables.AddRange(HttpContextVariables);
+            handleMethod.DerivedVariables.AddRange(HttpContextVariables);
 
-        var loggedType = InputType() ?? (Method.HandlerType.IsStatic() ? typeof(HttpGraph) : Method.HandlerType);
+            var loggedType = determineLogMarkerType();
 
-        handleMethod.Sources.Add(new LoggerVariableSource(loggedType));
-        handleMethod.Sources.Add(new MessageBusSource());
+            handleMethod.Sources.Add(new LoggerVariableSource(loggedType));
+            handleMethod.Sources.Add(new MessageBusSource());
 
-        handleMethod.Frames.AddRange(DetermineFrames(assembly.Rules));
+            handleMethod.Frames.AddRange(DetermineFrames(assembly.Rules));
+        }
+    }
+
+    private Type determineLogMarkerType()
+    {
+        if (HasRequestType) return RequestType;
+
+        if (Method.HandlerType.IsStatic()) return typeof(HttpGraph);
+
+        return Method.HandlerType;
     }
 
     Task<bool> ICodeFile.AttachTypes(GenerationRules rules, Assembly assembly, IServiceProvider? services,
@@ -53,14 +75,14 @@ public partial class HttpChain
     bool ICodeFile.AttachTypesSynchronously(GenerationRules rules, Assembly assembly, IServiceProvider? services,
         string containingNamespace)
     {
+        Debug.WriteLine(_generatedType?.SourceCode);
+        
         _handlerType = assembly.ExportedTypes.FirstOrDefault(x => x.Name == _fileName);
 
         if (_handlerType == null)
         {
             return false;
         }
-
-        Debug.WriteLine(_generatedType?.SourceCode);
 
         return true;
     }
@@ -103,7 +125,7 @@ public partial class HttpChain
             {
                 result.OverrideName("result" + ++index);
             }
-            
+
             foreach (var details in frame.Creates.Where(x => x.VariableType.CanBeCastTo<ProblemDetails>()))
             {
                 details.OverrideName(details.Usage + ++index);
@@ -119,7 +141,7 @@ public partial class HttpChain
         foreach (var frame in actionsOnOtherReturnValues) yield return frame;
 
         foreach (var frame in Postprocessors) yield return frame;
-        
+
         if (!Postprocessors.OfType<MethodCall>().Any(x =>
                 x.HandlerType == typeof(MessageContext) &&
                 x.Method.Name == nameof(MessageContext.EnqueueCascadingAsync)))
@@ -137,6 +159,6 @@ public partial class HttpChain
     {
         var parts = RoutePattern.RawText.Replace("{", "").Replace("*", "").Replace("}", "").Split('/').Select(x => x.Split(':').First());
 
-        return _httpMethods.Select(x => x.ToUpper()).Concat(parts).Join("_").Replace("-", "_").Replace("__", "_");
+        return _httpMethods.Select(x => x.ToUpper()).Concat(parts).Join("_").Replace('-', '_').Replace("__", "_");
     }
 }

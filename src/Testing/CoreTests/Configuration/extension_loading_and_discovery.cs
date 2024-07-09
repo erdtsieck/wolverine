@@ -1,4 +1,3 @@
-using System.Linq;
 using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -113,17 +112,11 @@ public class extension_loading_and_discovery : IntegrationContext
     }
 }
 
-public interface IColorService
-{
-}
+public interface IColorService;
 
-public class RedService : IColorService
-{
-}
+public class RedService : IColorService;
 
-public class BlueService : IColorService
-{
-}
+public class BlueService : IColorService;
 
 public class OptionalExtension : IWolverineExtension
 {
@@ -141,9 +134,7 @@ public class MyExtension : IWolverineExtension
     }
 }
 
-public class ExtensionMessage
-{
-}
+public class ExtensionMessage;
 
 public class ExtensionThing
 {

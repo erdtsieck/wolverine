@@ -26,7 +26,7 @@ internal class NewtonsoftSerializer : IMessageSerializer
 
     public JsonSerializerSettings Settings { get; }
 
-    public string ContentType { get; } = EnvelopeConstants.JsonContentType;
+    public string ContentType => EnvelopeConstants.JsonContentType;
 
     public byte[] Write(Envelope envelope)
     {
@@ -94,7 +94,7 @@ internal class NewtonsoftSerializer : IMessageSerializer
 
             _serializer.Serialize(jsonWriter, message);
             return stream.Position < _bufferSize
-                ? bytes.Take((int)stream.Position).ToArray()
+                ? bytes[..(int)stream.Position]
                 : stream.ToArray();
         }
 

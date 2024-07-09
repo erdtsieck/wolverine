@@ -1,6 +1,4 @@
-﻿using System;
-using System.Buffers;
-using System.Collections.Generic;
+﻿using System.Buffers;
 using System.Reflection;
 using DotPulsar;
 using DotPulsar.Abstractions;
@@ -10,7 +8,6 @@ using NSubstitute;
 using Shouldly;
 using TestingSupport;
 using Wolverine.Runtime;
-using Wolverine.Util;
 using Xunit;
 using MessageMetadata = DotPulsar.MessageMetadata;
 
@@ -85,7 +82,6 @@ public class DefaultPulsarProtocolTests
             return envelope;
         });
     }
-
 
     private Envelope theEnvelope => _mapped.Value;
 
@@ -180,14 +176,12 @@ public class DefaultPulsarProtocolTests
         theEnvelope.ConversationId.ShouldBe(theOriginal.ConversationId);
     }
 
-
     [Fact]
     public void parent_id()
     {
         theOriginal.ParentId = Guid.NewGuid().ToString();
         theEnvelope.ParentId.ShouldBe(theOriginal.ParentId);
     }
-
 
     [Fact]
     public void attempts()

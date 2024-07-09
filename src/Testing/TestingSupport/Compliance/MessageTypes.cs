@@ -1,4 +1,5 @@
-﻿using Wolverine;
+﻿using System.Diagnostics;
+using Wolverine;
 using Wolverine.Attributes;
 
 namespace TestingSupport.Compliance;
@@ -6,6 +7,11 @@ namespace TestingSupport.Compliance;
 [MessageIdentity("Message1")]
 public class Message1
 {
+    public Message1()
+    {
+        Debug.WriteLine("Built.");
+    }
+
     public Guid Id { get; set; } = Guid.NewGuid();
 }
 
@@ -16,14 +22,10 @@ public class Message2
 }
 
 [MessageIdentity("Message3")]
-public class Message3
-{
-}
+public class Message3;
 
 [MessageIdentity("Message4")]
-public class Message4
-{
-}
+public class Message4;
 
 [MessageIdentity("Message5")]
 public class Message5

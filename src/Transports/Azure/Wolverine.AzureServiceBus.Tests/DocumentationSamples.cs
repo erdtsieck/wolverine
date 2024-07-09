@@ -1,6 +1,5 @@
-using System;
-using System.Threading.Tasks;
 using Azure.Messaging.ServiceBus;
+using Azure.Messaging.ServiceBus.Administration;
 using JasperFx.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -42,7 +41,6 @@ public class DocumentationSamples
         #endregion
     }
 
-
     public async Task configuring_queues()
     {
         #region sample_configuring_azure_service_bus_queues
@@ -70,7 +68,7 @@ public class DocumentationSamples
                 opts.PublishAllMessages()
                     .ToAzureServiceBusQueue("outgoing")
                     .ConfigureQueue(options => { options.LockDuration = 3.Seconds(); })
-                    
+
                     // You may need to change the maximum number of messages
                     // in message batches depending on the size of your messages
                     // if you hit maximum data constraints
@@ -79,7 +77,6 @@ public class DocumentationSamples
 
         #endregion
     }
-
 
     public async Task configuring_a_listener()
     {
@@ -147,7 +144,34 @@ public class DocumentationSamples
                 #endregion
             }).StartAsync();
     }
-    
+
+    public async Task configure_subscription_filter()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine((context, opts) =>
+            {
+                // One way or another, you're probably pulling the Azure Service Bus
+                // connection string out of configuration
+                var azureServiceBusConnectionString = context
+                    .Configuration
+                    .GetConnectionString("azure-service-bus")!;
+
+                // Connect to the broker in the simplest possible way
+                opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
+
+                #region sample_configuring_azure_service_bus_subscription_filter
+                opts.ListenToAzureServiceBusSubscription(
+                    "subscription1",
+                    configureSubscriptionRule: rule =>
+                    {
+                        rule.Filter = new SqlRuleFilter("NOT EXISTS(user.ignore) OR user.ignore NOT LIKE 'true'");
+                    })
+                    .FromTopic("topic1");
+                #endregion
+            })
+            .StartAsync();
+    }
+
     public async Task configure_durable_listener()
     {
         using var host = await Host.CreateDefaultBuilder()
@@ -221,8 +245,8 @@ public class DocumentationSamples
                 // Explicitly configure a delivery expiration of 5 seconds
                 // for a specific Azure Service Bus queue
                 opts.PublishMessage<StatusUpdate>().ToAzureServiceBusQueue("transient")
-                    
-                    // If the messages are transient, it's likely that they should not be 
+
+                    // If the messages are transient, it's likely that they should not be
                     // durably stored, so make things lighter in your system
                     .BufferedInMemory()
                     .DeliverWithin(5.Seconds());
@@ -280,7 +304,6 @@ public class DocumentationSamples
         #endregion
     }
 
-
     public async Task conventional_routing()
     {
         #region sample_conventional_routing_for_azure_service_bus
@@ -336,7 +359,7 @@ public class DocumentationSamples
     {
         // Disregard the message if it isn't sent and/or processed within 3 seconds from now
         await bus.SendAsync(new StatusUpdate("Okay"), new DeliveryOptions { DeliverWithin = 3.Seconds() });
-        
+
         // Disregard the message if it isn't sent and/or processed by 3 PM today
         // but watch all the potentially harmful time zone issues in your real code that I'm ignoring here!
         await bus.SendAsync(new StatusUpdate("Okay"), new DeliveryOptions { DeliverBy = DateTime.Today.AddHours(15)});

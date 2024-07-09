@@ -1,5 +1,4 @@
 using System.Data.Common;
-using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
@@ -69,7 +68,7 @@ internal class CheckRecoverableIncomingMessagesOperation : IDatabaseOperation
             {
                 _logger.LogInformation("Found {Count} incoming messages from the inbox to destination {Destination}, but the listener is latched", incoming.Count, incoming.Destination);
             }
-            
+
         }
     }
 
@@ -131,7 +130,7 @@ internal class RecoverableIncomingMessagesOperation : IAgentCommand
 
             return [new RecoverableIncomingMessagesOperation(_database, count, _circuit, _settings, _logger)];
         }
-        
+
         return AgentCommands.Empty;
     }
 

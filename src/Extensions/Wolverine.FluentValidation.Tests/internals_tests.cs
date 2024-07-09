@@ -21,7 +21,7 @@ public class internals_tests
 
         ex.Message.ShouldBe("Validation failure on: Wolverine.FluentValidation.Tests.Command1");
 
-        ex.Errors.Count().ShouldBe(result.Errors.Count());
+        ex.Errors.Count().ShouldBe(result.Errors.Count);
     }
 
     [Fact]
@@ -30,7 +30,6 @@ public class internals_tests
         var validator = new Command1Validator();
         var command = new Command1();
         var failureAction = new FailureAction<Command1>();
-
 
         var ex = Should.Throw<ValidationException>(async () =>
         {
@@ -41,7 +40,6 @@ public class internals_tests
 
         ex.Errors.Count().ShouldBe(4);
     }
-
 
     [Fact]
     public void FluentValidationExecutor_execute_multiple_validators()
