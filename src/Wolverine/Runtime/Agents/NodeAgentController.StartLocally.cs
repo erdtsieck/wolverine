@@ -8,12 +8,14 @@ public partial class NodeAgentController
 
     public async Task StartSoloModeAsync()
     {
+        using var activity = WolverineTracing.ActivitySource.StartActivity("wolverine_node_assignments");
+        
         await _runtime.Storage.Nodes.ClearAllAsync(_cancellation.Token);
         await _runtime.Storage.Admin.ReleaseAllOwnershipAsync();
 
         var current = WolverineNode.For(_runtime.Options);
 
-        _runtime.Options.Durability.AssignedNodeNumber = current.AssignedNodeId = 1;
+        _runtime.Options.Durability.AssignedNodeNumber = current.AssignedNodeNumber = 1;
         await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.NodeStarted));
 
         await startAllAgentsAsync();

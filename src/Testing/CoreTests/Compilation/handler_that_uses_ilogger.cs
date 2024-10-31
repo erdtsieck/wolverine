@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 using Xunit.Abstractions;
@@ -21,7 +21,7 @@ public class handler_that_uses_ilogger
     {
         using var host = WolverineHost.Basic();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
         await bus.InvokeAsync(new ItemCreated());
 
         var graph = host.Services.GetRequiredService<HandlerGraph>();

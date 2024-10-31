@@ -1,15 +1,15 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
-using TestingSupport.Compliance;
 using Wolverine.AmazonSqs.Internal;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Runtime;
 
 namespace Wolverine.AmazonSqs.Tests;
 
 public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
-    public static int Number = 0;
+    public static int Number;
 
     public InlineComplianceFixture() : base(new Uri("sqs://buffered-receiver"), 120)
     {
@@ -48,7 +48,6 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
     }
 }
 
-[Collection("acceptance")]
 public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineComplianceFixture>
 {
     [Fact]
@@ -67,6 +66,5 @@ public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineCom
         await queue.InitializeAsync(NullLogger.Instance);
         var messages = await transport.Client.ReceiveMessageAsync(queue.QueueUrl);
         messages.Messages.Count.ShouldBeGreaterThan(0);
-
     }
 }

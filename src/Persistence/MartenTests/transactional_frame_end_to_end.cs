@@ -1,18 +1,18 @@
 using IntegrationTests;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
-using Lamar;
 using Marten;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
-using TestingSupport;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Compliance;
 using Weasel.Core;
 using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Marten;
 using Wolverine.Marten.Codegen;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
 namespace MartenTests;
@@ -34,7 +34,7 @@ public class transactional_frame_end_to_end : PostgresqlContext
         var command = new CreateDocCommand();
         await host.InvokeAsync(command);
 
-        await using var query = host.Get<IQuerySession>();
+        await using var query = host.DocumentStore().QuerySession();
         query.Load<FakeDoc>(command.Id)
             .ShouldNotBeNull();
     }
@@ -59,6 +59,7 @@ public class CreateDocCommand
     public Guid Id { get; set; } = Guid.NewGuid();
 }
 
+
 public class CreateDocCommandHandler
 {
     [Transactional]
@@ -67,6 +68,7 @@ public class CreateDocCommandHandler
         session.Store(new FakeDoc { Id = message.Id });
     }
 }
+
 
 public class UsingDocumentSessionHandler
 {
@@ -85,7 +87,7 @@ public class UsingDocumentSessionHandler
 
 public class CommandsAreTransactional : IHandlerPolicy
 {
-    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container)
     {
         // Important! Create a brand new TransactionalFrame
         // for each chain

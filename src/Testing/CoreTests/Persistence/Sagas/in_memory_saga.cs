@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using TestingSupport;
-using TestingSupport.Sagas;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Sagas;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Transports;
 
@@ -23,25 +23,25 @@ public class InMemorySagaHost : ISagaHost
         return _host;
     }
 
-    public Task<T> LoadState<T>(Guid id) where T : class
+    public Task<T> LoadState<T>(Guid id) where T : Saga
     {
         var loadState = _host.Services.GetRequiredService<InMemorySagaPersistor>().Load<T>(id);
         return Task.FromResult(loadState);
     }
 
-    public Task<T> LoadState<T>(int id) where T : class
+    public Task<T> LoadState<T>(int id) where T : Saga
     {
         var loadState = _host.Services.GetRequiredService<InMemorySagaPersistor>().Load<T>(id);
         return Task.FromResult(loadState);
     }
 
-    public Task<T> LoadState<T>(long id) where T : class
+    public Task<T> LoadState<T>(long id) where T : Saga
     {
         var loadState = _host.Services.GetRequiredService<InMemorySagaPersistor>().Load<T>(id);
         return Task.FromResult(loadState);
     }
 
-    public Task<T> LoadState<T>(string id) where T : class
+    public Task<T> LoadState<T>(string id) where T : Saga
     {
         var loadState = _host.Services.GetRequiredService<InMemorySagaPersistor>().Load<T>(id);
         return Task.FromResult(loadState);

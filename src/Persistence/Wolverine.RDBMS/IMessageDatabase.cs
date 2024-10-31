@@ -1,5 +1,6 @@
 using System.Data.Common;
 using Microsoft.Extensions.Logging;
+using Weasel.Core;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS.Polling;
@@ -23,15 +24,11 @@ public interface IMessageDatabase : IMessageStore
     Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes);
     Task StoreOutgoingAsync(DbTransaction tx, Envelope[] envelopes);
 
-    Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming);
-
     /// <summary>
     ///     Access the current count of persisted envelopes
     /// </summary>
     /// <returns></returns>
     Task<PersistedCounts> FetchCountsAsync();
-
-    Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
 
     DbCommandBuilder ToCommandBuilder();
 
@@ -42,4 +39,6 @@ public interface IMessageDatabase : IMessageStore
         CancellationToken cancellationToken);
 
     void Enqueue(IDatabaseOperation operation);
+    
+    IAdvisoryLock AdvisoryLock { get; }
 }

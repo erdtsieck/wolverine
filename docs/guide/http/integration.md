@@ -64,6 +64,8 @@ builder.Host.UseWolverine(opts =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+builder.Services.AddWolverineHttp();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -78,7 +80,7 @@ app.MapWolverineEndpoints();
 
 return await app.RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Program.cs#L1-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_wolverine_http' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Program.cs#L1-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_wolverine_http' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Do note that the only thing in that sample that pertains to `WolverineFx.Http` itself is the call to `IEndpointRouteBuilder.MapWolverineEndpoints()`.
@@ -94,16 +96,7 @@ public class HelloEndpoint
     public string Get() => "Hello.";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/NSwagDemonstrator/HelloEndpoint.cs#L5-L13' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_hello_world_with_wolverine_http' title='Start of snippet'>anchor</a></sup>
-<a id='snippet-sample_hello_world_with_wolverine_http-1'></a>
-```cs
-public class HelloEndpoint
-{
-    [WolverineGet("/")]
-    public string Get() => "Hello.";
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/HelloEndpoint.cs#L5-L13' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_hello_world_with_wolverine_http-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/HelloEndpoint.cs#L5-L13' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_hello_world_with_wolverine_http' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At application startup, WolverineFx.Http will find the `HelloEndpoint.Get()` method and treat it as a Wolverine http endpoint with
@@ -142,17 +135,7 @@ public class Todo
     public bool IsComplete { get; set; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Endpoints.cs#L7-L16' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_todo' title='Start of snippet'>anchor</a></sup>
-<a id='snippet-sample_todo-1'></a>
-```cs
-public class Todo
-{
-    public int Id { get; set; }
-    public string? Name { get; set; }
-    public bool IsComplete { get; set; }
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L7-L16' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_todo-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L7-L16' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_todo' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In a sample class called [TodoEndpoints](https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs)

@@ -1,6 +1,7 @@
 using Wolverine.Configuration;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Transports;
+using Wolverine.Util;
 
 namespace Wolverine.RabbitMQ;
 
@@ -9,20 +10,34 @@ namespace Wolverine.RabbitMQ;
 ///     exchange named after the MessageTypeName that is bound to a queue of the same name.
 /// </summary>
 public class RabbitMqMessageRoutingConvention : MessageRoutingConvention<RabbitMqTransport,
-    RabbitMqListenerConfiguration, RabbitMqExchangeConfiguration, RabbitMqMessageRoutingConvention>
+    RabbitMqConventionalListenerConfiguration, RabbitMqExchangeConfiguration, RabbitMqMessageRoutingConvention>
 {
-    protected override (RabbitMqListenerConfiguration, Endpoint) findOrCreateListenerForIdentifier(string identifier,
+    protected override (RabbitMqConventionalListenerConfiguration, Endpoint) FindOrCreateListenerForIdentifier(string identifier,
         RabbitMqTransport transport, Type messageType)
     {
         var queue = transport.Queues[identifier];
-        return (new RabbitMqListenerConfiguration(queue), queue);
+        return (new RabbitMqConventionalListenerConfiguration(queue, transport, _identifierForSender), queue);
     }
 
-    protected override (RabbitMqExchangeConfiguration, Endpoint) findOrCreateSubscriber(string identifier,
+    protected override void ApplyListenerRoutingDefaults(string listenerIdentifier, RabbitMqTransport transport, Type messageType)
+    {
+        var queue = transport.Queues[listenerIdentifier];
+        // If there's no custom bindings, bind to an exchange with the default convention
+        if (!queue.HasBindings)
+        {
+            var identifier = _identifierForSender(messageType);
+            if (identifier is null)
+                return;
+            var name = transport.MaybeCorrectName(identifier);
+            var exchange = transport.Exchanges[name];
+            queue.BindExchange(exchange.Name, exchange.Name);
+        }
+    }
+
+    protected override (RabbitMqExchangeConfiguration, Endpoint) FindOrCreateSubscriber(string identifier,
         RabbitMqTransport transport)
     {
         var exchange = transport.Exchanges[identifier];
-        exchange.BindQueue(identifier, identifier);
         return (new RabbitMqExchangeConfiguration(exchange), exchange);
     }
 

@@ -1,8 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
-using TestingSupport.Compliance;
 using Wolverine.AmazonSqs.Internal;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Runtime;
 
 namespace Wolverine.AmazonSqs.Tests;
@@ -15,7 +15,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 
     public async Task InitializeAsync()
     {
-        var number = Guid.NewGuid().ToString();
+        var number = Guid.NewGuid().ToString().Replace(".", "-");
 
         OutboundAddress = new Uri("sqs://receiver-" + number);
 
@@ -42,7 +42,6 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
     }
 }
 
-[Collection("acceptance")]
 public class BufferedSendingAndReceivingCompliance : TransportCompliance<BufferedComplianceFixture>
 {
     [Fact]
@@ -61,6 +60,5 @@ public class BufferedSendingAndReceivingCompliance : TransportCompliance<Buffere
         await queue.InitializeAsync(NullLogger.Instance);
         var messages = await transport.Client.ReceiveMessageAsync(queue.QueueUrl);
         messages.Messages.Count.ShouldBeGreaterThan(0);
-
     }
 }

@@ -32,7 +32,7 @@ public partial class Envelope
     {
         Message = message;
         Sender = agent;
-        Serializer = agent.Endpoint.DefaultSerializer;
+        Serializer = message is ISerializable ? IntrinsicSerializer.Instance : agent.Endpoint.DefaultSerializer;
         ContentType = Serializer!.ContentType;
         Destination = agent.Destination;
         ReplyUri = agent.ReplyUri;
@@ -56,22 +56,33 @@ public partial class Envelope
     ///     Also used by IMessageContext.Invoke<T> to catch the response
     /// </summary>
     internal object? Response { get; set; }
+    
+    /// <summary>
+    /// Used internally only, tells Wolverine's cascading
+    /// message logic to *not* publish the designated response
+    /// message as a cascading message. Originally added for the
+    /// Http transport request/reply
+    /// </summary>
+    public bool DoNotCascadeResponse { get; set; }
 
     /// <summary>
     ///     Status according to the message persistence
     /// </summary>
-    internal EnvelopeStatus Status { get; set; }
+    public EnvelopeStatus Status { get; set; }
 
     /// <summary>
     ///     Node owner of this message. 0 denotes that no node owns this message
     /// </summary>
-    internal int OwnerId { get; set; }
-
+    public int OwnerId { get; set; }
+    
+    internal bool InBatch { get; set; }
+    
     internal ISendingAgent? Sender { get; set; }
 
-    public IListener? Listener { get; private set; }
+    public IListener? Listener { get; internal set; }
     public bool IsResponse { get; set; }
     public Exception? Failure { get; set; }
+    internal Envelope[]? Batch { get; set; }
 
     internal void StartTiming()
     {
@@ -155,9 +166,16 @@ public partial class Envelope
             child.AcceptedContentTypes = AcceptedContentTypes;
         }
 
+        if (message is ISerializable)
+        {
+            child.Serializer = IntrinsicSerializer.Instance;
+            child.ContentType = IntrinsicSerializer.MimeType;
+        }
+
         return child;
     }
 
+    [Obsolete("not really used")]
     internal Envelope ForSend(object message)
     {
         return new Envelope

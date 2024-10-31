@@ -1,12 +1,14 @@
 ﻿using System.Reflection;
+using System.Security.Claims;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Wolverine.Attributes;
 using Wolverine.Logging;
 using Wolverine.Middleware;
+using Wolverine.Runtime;
+using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Configuration;
 
@@ -47,7 +49,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     /// <param name="stopAtTypes"></param>
     /// <param name="chain"></param>
     /// <returns></returns>
-    public IEnumerable<Type> ServiceDependencies(IContainer container, IReadOnlyList<Type> stopAtTypes)
+    public IEnumerable<Type> ServiceDependencies(IServiceContainer container, IReadOnlyList<Type> stopAtTypes)
     {
         return serviceDependencies(container, stopAtTypes).Concat(_dependencies).Distinct();
     }
@@ -101,7 +103,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         }
     }
 
-    protected void applyAttributesAndConfigureMethods(GenerationRules rules, IContainer container)
+    protected void applyAttributesAndConfigureMethods(GenerationRules rules, IServiceContainer container)
     {
         var handlers = HandlerCalls();
         var configureMethods = handlers.Select(x => x.HandlerType).Distinct()
@@ -126,7 +128,55 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
             attribute.Modify(this, rules, container);
     }
 
-    private IEnumerable<Type> serviceDependencies(IContainer container, IReadOnlyList<Type> stopAtTypes)
+    private static Type[] _typesToIgnore = new Type[]
+    {
+        typeof(DateOnly),
+        typeof(TimeSpan),
+        typeof(DateTimeOffset),
+        typeof(BinaryReader),
+        typeof(BinaryWriter),
+        typeof(ClaimsIdentity),
+        typeof(ClaimsPrincipal),
+        typeof(Guid),
+        typeof(byte[]),
+        typeof(decimal),
+    };
+    
+    private static bool isMaybeServiceDependency(Type type)
+    {
+        if (type.IsPrimitive) return false;
+        if (type.IsSimple()) return false;
+        if (type.IsDateTime()) return false;
+
+        if (_typesToIgnore.Contains(type)) return false;
+
+        if (type.IsNullable())
+        {
+            var innerType = type.GenericTypeArguments[0];
+            if (_typesToIgnore.Contains(innerType)) return false;
+            if (innerType.IsPrimitive) return false;
+            if (innerType.IsSimple()) return false;
+            if (innerType.IsDateTime()) return false;
+        }
+
+        if (type.IsArray)
+        {
+            return isMaybeServiceDependency(type.GetElementType());
+        }
+
+        if (ServiceContainer.IsEnumerable(type))
+        {
+            var elementType = type.GetGenericArguments()[0];
+            return isMaybeServiceDependency(elementType);
+        }
+
+        if (type.IsInNamespace("System.Web")) return false;
+        if (type.IsInNamespace("Microsoft.AspNetCore.Http")) return false;
+        
+        return true;
+    }
+
+    private IEnumerable<Type> serviceDependencies(IServiceContainer container, IReadOnlyList<Type> stopAtTypes)
     {
         var calls = Middleware.OfType<MethodCall>().Concat(HandlerCalls());
 
@@ -134,21 +184,32 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         {
             yield return call.HandlerType;
 
+            if (!call.Method.IsStatic)
+            {
+                foreach (var type in container.ServiceDependenciesFor(call.HandlerType))
+                {
+                    yield return type;
+                }
+            }
+
             foreach (var parameter in call.Method.GetParameters())
             {
-                // Absolutely do NOT let Lamar go into the command/input/request types
-                if (parameter.ParameterType != InputType() && !parameter.ParameterType.IsPrimitive)
+                // Absolutely do NOT let the dependency discovery go into the command/input/request types
+                if (parameter.ParameterType != InputType() && isMaybeServiceDependency(parameter.ParameterType))
                 {
                     yield return parameter.ParameterType;
+
+                    if (stopAtTypes.Contains(parameter.ParameterType))
+                    {
+                        continue;
+                    }
 
                     if (parameter.ParameterType.Assembly != GetType().Assembly ||
                         !stopAtTypes.Contains(parameter.ParameterType))
                     {
-                        var candidate = container.Model.For(parameter.ParameterType).Default;
-                        if (candidate != null)
+                        foreach (var dependencyType in container.ServiceDependenciesFor(parameter.ParameterType))
                         {
-                            foreach (var dependency in candidate.Instance.Dependencies)
-                                yield return dependency.ServiceType;
+                            yield return dependencyType;
                         }
                     }
                 }
@@ -158,12 +219,6 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
             if (call.HandlerType.IsStatic())
             {
                 continue;
-            }
-
-            var @default = container.Model.For(call.HandlerType).Default;
-            if (@default != null)
-            {
-                foreach (var dependency in @default.Instance.Dependencies) yield return dependency.ServiceType;
             }
         }
     }
@@ -183,20 +238,33 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
 
                 Middleware.Add(frame);
 
+                // TODO -- might generalize this a bit. Have a more generic mode of understanding return values
+                // like the HTTP support has
+                var outgoings = frame.Creates.Where(x => x.VariableType == typeof(OutgoingMessages)).ToArray();
+                int start = 100;
+                foreach (var outgoing in outgoings)
+                {
+                    outgoing.OverrideName(outgoing.Usage + (++start));
+                    Middleware.Add(new CaptureCascadingMessages(outgoing));
+                }
+
                 // Potentially add handling for IResult or HandlerContinuation
-                if (generationRules.TryFindContinuationHandler(frame, out var continuation))
+                if (generationRules.TryFindContinuationHandler(this, frame, out var continuation))
                 {
                     Middleware.Add(continuation!);
                 }
             }
 
             var afters = MiddlewarePolicy.FilterMethods<WolverineAfterAttribute>(handlerType.GetMethods(),
-                MiddlewarePolicy.AfterMethodNames);
+                MiddlewarePolicy.AfterMethodNames).ToArray();
 
-            foreach (var after in afters)
+            if (afters.Any())
             {
-                var frame = new MethodCall(handlerType, after);
-                Postprocessors.Add(frame);
+                for (int i = 0; i < afters.Length; i++)
+                {
+                    var frame = new MethodCall(handlerType, afters[i]);
+                    Postprocessors.Insert(i, frame);
+                }
             }
         }
     }

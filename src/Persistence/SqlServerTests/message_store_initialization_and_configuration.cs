@@ -9,6 +9,7 @@ using Shouldly;
 using Weasel.SqlServer;
 using Wolverine;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Sagas;
 using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime;
 using Wolverine.SqlServer;
@@ -85,7 +86,7 @@ public class message_store_initialization_and_configuration : SqlServerContext, 
 
         var current = nodes.Single();
 
-        current.Id.ShouldBe(runtime.Options.UniqueNodeId);
+        current.NodeId.ShouldBe(runtime.Options.UniqueNodeId);
         current.ControlUri.ShouldBe(runtime.Options.Transports.NodeControlEndpoint.Uri);
 
     }
@@ -105,7 +106,7 @@ public class message_store_initialization_and_configuration : SqlServerContext, 
         };
 
         var store = new SqlServerMessageStore(settings, new DurabilitySettings(),
-            NullLogger<SqlServerMessageStore>.Instance);
+            NullLogger<SqlServerMessageStore>.Instance, Array.Empty<SagaTableDefinition>());
 
         // Should delete itself at the end
         var nodes = await store.Nodes.LoadAllNodesAsync(CancellationToken.None);

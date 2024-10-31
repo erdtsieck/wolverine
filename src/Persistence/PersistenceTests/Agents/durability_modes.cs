@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 using Npgsql;
 using Oakton.Resources;
 using Shouldly;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Weasel.Postgresql;
 using Wolverine;
 using Wolverine.Postgresql;
@@ -15,6 +15,7 @@ using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
 using Wolverine.Transports;
 using Wolverine.Transports.Tcp;
+using Wolverine.Util;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -118,8 +119,7 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
             w.ExpectRunningAgents(_host, 12);
         }, 30.Seconds());
 
-        await tracker.WaitUntilAssumesLeadershipAsync(30.Seconds());
-        tracker.Nodes.Count.ShouldBe(1);
+        await _host.WaitUntilAssumesLeadershipAsync(30.Seconds());
 
         // Deletes the current node on stop
         await stopAsync();

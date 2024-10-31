@@ -1,5 +1,5 @@
-﻿using TestingSupport;
-using TestingSupport.Compliance;
+﻿using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Compliance;
 using Xunit;
 
 namespace CoreTests.Compilation;
@@ -8,7 +8,11 @@ public class simple_async_message_handlers : CompilationContext
 {
     public simple_async_message_handlers()
     {
-        theOptions.IncludeType<AsyncHandler>();
+        IfWolverineIsConfiguredAs(theOptions =>
+        {
+            theOptions.IncludeType<AsyncHandler>();
+        });
+        
     }
 
     [Fact]

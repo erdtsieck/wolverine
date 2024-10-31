@@ -1,7 +1,13 @@
-﻿using Microsoft.Extensions.Hosting;
-using TestingSupport;
-using TestingSupport.Compliance;
+﻿using JasperFx.Core.Reflection;
+using Lamar.Microsoft.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Oakton.Resources;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Compliance;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Tracking;
 using Xunit;
 
 namespace CoreTests;
@@ -10,11 +16,17 @@ public class DefaultApp : IDisposable
 {
     public DefaultApp()
     {
-        Host = WolverineHost.For(x =>
-        {
-            x.IncludeType<MessageConsumer>();
-            x.IncludeType<InvokedMessageHandler>();
-        });
+        Host = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
+            .UseLamar()
+            .UseWolverine(opts =>
+            {
+                opts.MessageExecutionLogLevel(LogLevel.Information);
+                opts.MessageSuccessLogLevel(LogLevel.Debug);
+                
+                opts.IncludeType<MessageConsumer>();
+                opts.IncludeType<InvokedMessageHandler>();
+            })
+            .UseResourceSetupOnStartup(StartupAction.ResetState).Start();
     }
 
     public IHost Host { get; private set; }
@@ -35,7 +47,7 @@ public class DefaultApp : IDisposable
 
     public HandlerChain ChainFor<T>()
     {
-        return Host.Get<HandlerGraph>().ChainFor<T>();
+        return Host.Get<HandlerGraph>().HandlerFor<T>().As<MessageHandler>().Chain;
     }
 }
 
@@ -53,8 +65,8 @@ public class IntegrationContext : IDisposable, IClassFixture<DefaultApp>
 
     public IHost Host { get; private set; }
 
-    public IMessageContext Publisher => Host.Get<IMessageContext>();
-    public IMessageBus Bus => Host.Get<IMessageBus>();
+    public IMessageContext Publisher => new MessageContext(Host.GetRuntime());
+    public IMessageBus Bus => Host.MessageBus();
 
     public HandlerGraph Handlers => Host.Get<HandlerGraph>();
 
@@ -65,19 +77,11 @@ public class IntegrationContext : IDisposable, IClassFixture<DefaultApp>
 
     protected void with(Action<WolverineOptions> configuration)
     {
-        Host = WolverineHost.For(opts =>
-        {
-            configuration(opts);
-            opts.Services.Scan(scan =>
-            {
-                scan.TheCallingAssembly();
-                scan.WithDefaultConventions();
-            });
-        });
+        Host = WolverineHost.For(configuration);
     }
 
     protected HandlerChain chainFor<T>()
     {
-        return Handlers.ChainFor<T>();
+        return Handlers.HandlerFor<T>().As<MessageHandler>().Chain;
     }
 }

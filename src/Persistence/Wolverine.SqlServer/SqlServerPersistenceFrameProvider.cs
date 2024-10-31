@@ -1,70 +1,86 @@
-﻿using JasperFx.CodeGeneration.Frames;
+﻿using System.Data.Common;
+using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
-using Lamar;
+using JasperFx.Core.Reflection;
 using Microsoft.Data.SqlClient;
 using Wolverine.Configuration;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Sagas;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Sagas;
+using Wolverine.Runtime;
 
 namespace Wolverine.SqlServer;
 
 internal class SqlServerPersistenceFrameProvider : IPersistenceFrameProvider
 {
-    public void ApplyTransactionSupport(IChain chain, IContainer container)
+    public void ApplyTransactionSupport(IChain chain, IServiceContainer container)
     {
+        if (chain.Middleware.OfType<DbTransactionFrame<SqlTransaction, SqlConnection>>().Any()) return;
+        
         var shouldFlushOutgoingMessages = chain.ShouldFlushOutgoingMessages();
-
-
+        
         var frame = new DbTransactionFrame<SqlTransaction, SqlConnection>
             { ShouldFlushOutgoingMessages = shouldFlushOutgoingMessages };
 
         chain.Middleware.Add(frame);
+
+        if (chain is SagaChain)
+        {
+            chain.Middleware.Add(new CodeFrame(false, $"var dbtx = ({typeof(DbTransaction).FullNameInCode()}){{0}};", frame.Transaction));
+        }
     }
 
-    public bool CanApply(IChain chain, IContainer container)
+    public bool CanApply(IChain chain, IServiceContainer container)
     {
         if (chain is SagaChain)
         {
-            return false;
+            return true;
         }
 
         return chain.ServiceDependencies(container, Type.EmptyTypes).Any(x => x == typeof(SqlConnection) || x == typeof(SqlTransaction));
     }
 
-    public bool CanPersist(Type entityType, IContainer container, out Type persistenceService)
+    public bool CanPersist(Type entityType, IServiceContainer container, out Type persistenceService)
     {
+        if (entityType.CanBeCastTo<Saga>())
+        {
+            persistenceService = typeof(IDatabaseSagaStorage);
+            return true;
+        }
+        
         persistenceService = default!;
         return false;
     }
 
-    public Type DetermineSagaIdType(Type sagaType, IContainer container)
+    public Type DetermineSagaIdType(Type sagaType, IServiceContainer container)
     {
-        throw new NotSupportedException();
+        var storageDefinition = new SagaTableDefinition(sagaType, null);
+        return storageDefinition.IdMember.GetMemberType();
     }
 
-    public Frame DetermineLoadFrame(IContainer container, Type sagaType, Variable sagaId)
+    public Frame DetermineLoadFrame(IServiceContainer container, Type sagaType, Variable sagaId)
     {
-        throw new NotSupportedException();
+        return new LoadSagaOperation(sagaType, sagaId);
     }
 
-    public Frame DetermineInsertFrame(Variable saga, IContainer container)
+    public Frame DetermineInsertFrame(Variable saga, IServiceContainer container)
     {
-        throw new NotSupportedException();
+        return new SagaOperation(saga, SagaOperationType.InsertAsync);
     }
 
-    public Frame CommitUnitOfWorkFrame(Variable saga, IContainer container)
+    public Frame CommitUnitOfWorkFrame(Variable saga, IServiceContainer container)
     {
-        throw new NotSupportedException();
+        return new CommentFrame("No additional Unit of Work necessary");
     }
 
-    public Frame DetermineUpdateFrame(Variable saga, IContainer container)
+    public Frame DetermineUpdateFrame(Variable saga, IServiceContainer container)
     {
-        throw new NotSupportedException();
+        return new SagaOperation(saga, SagaOperationType.UpdateAsync);
     }
 
-    public Frame DetermineDeleteFrame(Variable sagaId, Variable saga, IContainer container)
+    public Frame DetermineDeleteFrame(Variable sagaId, Variable saga, IServiceContainer container)
     {
-        throw new NotSupportedException();
+        return new SagaOperation(saga, SagaOperationType.DeleteAsync);
     }
 }

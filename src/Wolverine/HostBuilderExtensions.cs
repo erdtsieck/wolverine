@@ -1,9 +1,9 @@
+using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Commands;
+using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Lamar;
-using Lamar.Microsoft.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -11,6 +11,7 @@ using Microsoft.Extensions.ObjectPool;
 using Oakton;
 using Oakton.Descriptions;
 using Oakton.Resources;
+using Wolverine.Codegen;
 using Wolverine.Configuration;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
@@ -19,184 +20,237 @@ using Wolverine.Runtime.Handlers;
 
 namespace Wolverine;
 
-public static class HostBuilderExtensions
+public enum ExtensionDiscovery
 {
-    internal static readonly string ExtensionScanningKey = "ExtensionScanning";
+    /// <summary>
+    /// Wolverine is allowed to try to discover assemblies marked with [WolverineModule] and load Wolverine
+    /// extensions
+    /// </summary>
+    Automatic,
     
     /// <summary>
-    ///     Add Wolverine to an ASP.Net Core application with optional configuration to Wolverine
+    /// Extensions must be loaded manually
     /// </summary>
-    /// <param name="builder"></param>
-    /// <param name="overrides">Programmatically configure Wolverine options</param>
-    /// <returns></returns>
-    public static IHostBuilder UseWolverine(this IHostBuilder builder,
-        Action<HostBuilderContext, WolverineOptions>? overrides = null)
-    {
-        return builder.UseWolverine(new WolverineOptions(), overrides);
-    }
+    ManualOnly
+}
 
-    /// <summary>
-    /// Use this to disable the automatic assembly scanning for Wolverine extensions
-    /// that can cause issues in specific Docker configurations
-    /// </summary>
-    /// <param name="builder"></param>
-    /// <returns></returns>
-    public static IHostBuilder DisableWolverineExtensionScanning(this IHostBuilder builder)
-    {
-        builder.Properties[ExtensionScanningKey] = "disabled";
-        return builder;
-    }
-
+public static class HostBuilderExtensions
+{
     /// <summary>
     ///     Add Wolverine to an ASP.Net Core application with optional configuration to Wolverine
     /// </summary>
     /// <param name="builder"></param>
     /// <param name="overrides">Programmatically configure Wolverine options</param>
     /// <returns></returns>
-    public static IHostBuilder UseWolverine(this IHostBuilder builder, Action<WolverineOptions> overrides)
+    public static IHostBuilder UseWolverine(this IHostBuilder builder, Action<WolverineOptions>? overrides = null, ExtensionDiscovery discovery = ExtensionDiscovery.Automatic)
     {
-        return builder.UseWolverine((_, r) => overrides(r));
-    }
-
-    /// <summary>
-    ///     Add Wolverine to an ASP.Net Core application with a pre-built WolverineOptionsBuilder
-    /// </summary>
-    /// <param name="builder"></param>
-    /// <param name="optionsy"></param>
-    /// <returns></returns>
-    internal static IHostBuilder UseWolverine(this IHostBuilder builder, WolverineOptions options,
-        Action<HostBuilderContext, WolverineOptions>? customization = null)
-    {
-        if (options == null)
+        return builder.ConfigureServices(services =>
         {
-            throw new ArgumentNullException(nameof(options));
+            services.AddWolverine(discovery, overrides);
+        });
+    }
+
+    // Just for testing
+    internal static IHostBuilder UseWolverine(this IHostBuilder builder, WolverineOptions options)
+    {
+        return builder.ConfigureServices(services =>
+        {
+            services.AddWolverine(options);
+        });
+    }
+
+    /// <summary>
+    /// Add Wolverine services to your application with automatic extension discovery
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static IServiceCollection AddWolverine(this IServiceCollection services, Action<WolverineOptions>? configure)
+        => services.AddWolverine(ExtensionDiscovery.Automatic, configure);
+
+    /// <summary>
+    /// Add Wolverine services to your application
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="discovery">Specify the extension discovery mode</param>
+    /// <param name="configure">Apply specific Wolverine configuration for this application</param>
+    /// <returns></returns>
+    public static IServiceCollection AddWolverine(this IServiceCollection services, ExtensionDiscovery discovery, Action<WolverineOptions>? configure = null)
+    {
+        var options = new WolverineOptions();
+        return AddWolverine(services, options, discovery, configure);
+    }
+
+    /// <summary>
+    /// Add Wolverine services to your application with a pre-built WolverineOptions object
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="options"></param>
+    /// <param name="discovery">Specify the extension discovery mode</param>
+    /// <param name="configure">Apply specific Wolverine configuration for this application</param>
+    /// <returns></returns>
+    /// <exception cref="InvalidOperationException"></exception>
+    internal static IServiceCollection AddWolverine(this IServiceCollection services, WolverineOptions options,
+        ExtensionDiscovery discovery = ExtensionDiscovery.Automatic,
+        Action<WolverineOptions>? configure = null)
+    {
+        if (services.Any(x => x.ServiceType == typeof(IWolverineRuntime)))
+        {
+            throw new InvalidOperationException(
+                "IHostBuilder.UseWolverine() can only be called once per service collection");
         }
 
-        builder.UseLamar(r => r.Policies.Add(new HandlerScopingPolicy(options.HandlerGraph)));
+        services.AddSingleton(services);
+            
+        services.AddSingleton<WolverineSupplementalCodeFiles>();
+        services.AddSingleton<ICodeFileCollection>(x => x.GetRequiredService<WolverineSupplementalCodeFiles>());
 
-        builder.ConfigureServices((context, services) =>
+        services.AddSingleton<IStatefulResource, MessageStoreResource>();
+
+        services.AddSingleton<IServiceContainer, ServiceContainer>();
+
+        services.AddTransient<IServiceVariableSource, ServiceCollectionServerVariableSource>();
+
+        services.AddSingleton(s =>
         {
-            if (services.Any(x => x.ServiceType == typeof(IWolverineRuntime)))
-            {
-                throw new InvalidOperationException(
-                    "IHostBuilder.UseWolverine() can only be called once per service collection");
-            }
+            var extensions = s.GetServices<IWolverineExtension>();
+            options.ApplyExtensions(extensions.ToArray());
 
-            services.AddSingleton<WolverineSupplementalCodeFiles>();
-            services.AddSingleton<ICodeFileCollection>(x => x.GetRequiredService<WolverineSupplementalCodeFiles>());
-
-            services.AddSingleton<IStatefulResource, MessageStoreResource>();
-
-            services.AddTransient(s => s.GetRequiredService<IContainer>().CreateServiceVariableSource());
-
-            services.AddSingleton(s =>
-            {
-                var extensions = s.GetServices<IWolverineExtension>();
-                foreach (var extension in extensions)
-                {
-                    extension.Configure(options);
-                    options.AppliedExtensions.Add(extension);
-                }
-
-                var environment = s.GetService<IHostEnvironment>();
-                var directory = environment?.ContentRootPath ?? AppContext.BaseDirectory;
+            var environment = s.GetService<IHostEnvironment>();
+            var directory = environment?.ContentRootPath ?? AppContext.BaseDirectory;
 
 #if DEBUG
-                if (directory.EndsWith("Debug", StringComparison.OrdinalIgnoreCase))
-                {
-                    directory = directory.ParentDirectory()!.ParentDirectory();
-                }
-                else if (directory.ParentDirectory()!.EndsWith("Debug", StringComparison.OrdinalIgnoreCase))
-                {
-                    directory = directory.ParentDirectory()!.ParentDirectory()!.ParentDirectory();
-                }
+            if (directory.EndsWith("Debug", StringComparison.OrdinalIgnoreCase))
+            {
+                directory = directory.ParentDirectory()!.ParentDirectory();
+            }
+            else if (directory.ParentDirectory()!.EndsWith("Debug", StringComparison.OrdinalIgnoreCase))
+            {
+                directory = directory.ParentDirectory()!.ParentDirectory()!.ParentDirectory();
+            }
 #endif
 
-                // Don't correct for the path if it's already been set
-                if (options.CodeGeneration.GeneratedCodeOutputPath == "Internal/Generated")
-                {
-                    options.CodeGeneration.GeneratedCodeOutputPath =
-                        directory!.AppendPath("Internal", "Generated");
-                }
-
-                return options;
-            });
-
-            services.AddSingleton<IWolverineRuntime, WolverineRuntime>();
-
-            services.AddSingleton(s => (IStatefulResourceSource)s.GetRequiredService<IWolverineRuntime>());
-
-            services.AddSingleton(options.HandlerGraph);
-            services.AddSingleton(options.Durability);
-
-            // The runtime is also a hosted service
-            services.AddSingleton(s => (IHostedService)s.GetRequiredService<IWolverineRuntime>());
-
-            services.MessagingRootService(x => x.MessageTracking);
-
-            services.AddSingleton<IDescribedSystemPartFactory>(s =>
-                (IDescribedSystemPartFactory)s.GetRequiredService<IWolverineRuntime>());
-
-            services.TryAddSingleton<IMessageStore, NullMessageStore>();
-            services.AddSingleton<InMemorySagaPersistor>();
-
-            services.MessagingRootService(x => x.Pipeline);
-
-            services.AddOptions();
-            services.AddLogging();
-
-            services.AddScoped<IMessageBus, MessageContext>();
-            services.AddScoped<IMessageContext, MessageContext>();
-
-            services.AddSingleton<ObjectPoolProvider>(new DefaultObjectPoolProvider());
-
-            // I'm not proud of this code, but you need a non-null
-            // Container property to use the codegen
-            services.AddSingleton<ICodeFileCollection>(c =>
+            // Don't correct for the path if it's already been set
+            if (options.CodeGeneration.GeneratedCodeOutputPath == "Internal/Generated")
             {
-                var handlers = c.GetRequiredService<HandlerGraph>();
-                var container = (IContainer)c;
-                handlers.Container = container;
-
-                // Ugly workaround. Leave this be.
-                // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
-                if (handlers.Rules == null)
-                {
-                    handlers.Compile(container.GetInstance<WolverineOptions>(), container);
-                }
-
-                handlers.Rules ??= c.GetRequiredService<WolverineOptions>().CodeGeneration;
-
-                return handlers;
-            });
-
-            options.Services.InsertRange(0, services);
-
-            if (!context.Properties.ContainsKey(ExtensionScanningKey))
-            {
-                ExtensionLoader.ApplyExtensions(options);
+                options.CodeGeneration.GeneratedCodeOutputPath =
+                    directory!.AppendPath("Internal", "Generated");
             }
 
-            if (options.ApplicationAssembly != null)
-            {
-                options.HandlerGraph.Discovery.Assemblies.Fill(options.ApplicationAssembly);
-            }
-
-            customization?.Invoke(context, options);
-
-            options.ApplyLazyConfiguration();
-
-            options.CombineServices(services);
+            return options;
         });
+
+        services.AddSingleton<IWolverineRuntime, WolverineRuntime>();
+
+        services.AddSingleton(s => (IStatefulResourceSource)s.GetRequiredService<IWolverineRuntime>());
+
+        services.AddSingleton(options.HandlerGraph);
+        services.AddSingleton(options.Durability);
+
+        // The runtime is also a hosted service
+        services.AddSingleton(s => (IHostedService)s.GetRequiredService<IWolverineRuntime>());
+
+        services.MessagingRootService(x => x.MessageTracking);
+
+        services.AddSingleton<IDescribedSystemPartFactory>(s =>
+            (IDescribedSystemPartFactory)s.GetRequiredService<IWolverineRuntime>());
+
+        services.TryAddSingleton<IMessageStore, NullMessageStore>();
+        services.AddSingleton<InMemorySagaPersistor>();
+
+        services.MessagingRootService(x => x.Pipeline);
+
+        services.AddOptions();
+        services.AddLogging();
+
+        services.AddScoped<IMessageBus, MessageContext>();
+        services.AddScoped<IMessageContext, MessageContext>();
+
+        services.AddSingleton<ObjectPoolProvider>(new DefaultObjectPoolProvider());
+
+        // I'm not proud of this code, but you need a non-null
+        // Container property to use the codegen
+        services.AddSingleton<ICodeFileCollection>(c =>
+        {
+            var handlers = c.GetRequiredService<HandlerGraph>();
+            var container = c.GetRequiredService<IServiceContainer>();
+            handlers.Container = container;
+
+            // Ugly workaround. Leave this be.
+            // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+            if (handlers.Rules == null)
+            {
+                handlers.Compile(container.GetInstance<WolverineOptions>(), container);
+            }
+
+            handlers.Rules ??= c.GetRequiredService<WolverineOptions>().CodeGeneration;
+
+            return handlers;
+        });
+
+        options.Services = services;
+        if (discovery == ExtensionDiscovery.Automatic)
+        {
+            ExtensionLoader.ApplyExtensions(options);
+        }
+
+        if (options.ApplicationAssembly != null)
+        {
+            options.HandlerGraph.Discovery.Assemblies.Fill(options.ApplicationAssembly);
+        }
+
+        configure?.Invoke(options);
+
+        options.ApplyLazyConfiguration();
+
+        return services;
+    }
+
+#if NET8_0_OR_GREATER
+    /// <summary>
+    /// Bootstrap Wolverine into a HostApplicationBuilder
+    /// </summary>
+    /// <param name="builder"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static IHostApplicationBuilder UseWolverine(this IHostApplicationBuilder builder,
+        Action<WolverineOptions>? configure)
+    {
+        builder.Services.AddWolverine(configure);
 
         return builder;
     }
+    #else
+    /// <summary>
+    /// Bootstrap Wolverine into a HostApplicationBuilder
+    /// </summary>
+    /// <param name="builder"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static HostApplicationBuilder UseWolverine(this HostApplicationBuilder builder,
+        Action<WolverineOptions>? configure)
+    {
+        builder.Services.AddWolverine(configure);
+
+        return builder;
+    }
+#endif
 
     internal static void MessagingRootService<T>(this IServiceCollection services,
         Func<IWolverineRuntime, T> expression)
         where T : class
     {
         services.AddSingleton(s => expression(s.GetRequiredService<IWolverineRuntime>()));
+    }
+
+    /// <summary>
+    /// Create a new message bus instance directly from the IHost. Helpful for testing
+    /// </summary>
+    /// <param name="host"></param>
+    /// <returns></returns>
+    public static IMessageBus MessageBus(this IHost host)
+    {
+        return new MessageBus(host.Services.GetRequiredService<IWolverineRuntime>());
     }
 
     /// <summary>
@@ -210,9 +264,9 @@ public static class HostBuilderExtensions
         return hostBuilder.RunOaktonCommands(args);
     }
 
-    public static T Get<T>(this IHost host)
+    public static T Get<T>(this IHost host) where T : notnull
     {
-        return host.Services.As<IContainer>().GetInstance<T>();
+        return host.Services.GetRequiredService<T>();
     }
 
     public static object Get(this IHost host, Type serviceType)
@@ -229,7 +283,7 @@ public static class HostBuilderExtensions
     /// <returns></returns>
     public static ValueTask SendAsync<T>(this IHost host, T message, DeliveryOptions? options = null)
     {
-        return host.Get<IMessageBus>().SendAsync(message, options);
+        return host.MessageBus().SendAsync(message, options);
     }
 
     /// <summary>
@@ -249,7 +303,7 @@ public static class HostBuilderExtensions
             throw new ArgumentNullException(nameof(message));
         }
 
-        return host.Get<IMessageBus>().EndpointFor(endpointName).SendAsync(message, options);
+        return host.MessageBus().EndpointFor(endpointName).SendAsync(message, options);
     }
 
     /// <summary>
@@ -262,7 +316,7 @@ public static class HostBuilderExtensions
     /// <returns></returns>
     public static Task InvokeAsync<T>(this IHost host, T command)
     {
-        return host.Get<IMessageBus>().InvokeAsync(command!);
+        return host.MessageBus().InvokeAsync(command!);
     }
 
     /// <summary>
@@ -289,19 +343,12 @@ public static class HostBuilderExtensions
 
     /// <summary>
     ///     Validate all of the Wolverine configuration of this Wolverine application.
-    ///     This:
-    ///     1. Checks that all of the known generated code elements are valid
-    ///     2. Does an assertion of the Lamar container configuration
+    ///     This checks that all of the known generated code elements are valid
     /// </summary>
     /// <param name="host"></param>
     public static void AssertWolverineConfigurationIsValid(this IHost host)
     {
         host.AssertAllGeneratedCodeCanCompile();
-
-        if (host.Services is IContainer c)
-        {
-            c.AssertConfigurationIsValid();
-        }
     }
 
     /// <summary>

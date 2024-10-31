@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
-using TestingSupport;
-using TestingSupport.Compliance;
-using TestingSupport.Fakes;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Compliance;
+using Wolverine.ComplianceTests.Fakes;
 using Wolverine.Attributes;
 using Xunit;
 
@@ -9,14 +9,17 @@ namespace CoreTests.Compilation;
 
 public class use_wrappers : CompilationContext
 {
-    private readonly TestingSupport.Fakes.Tracking theTracking = new();
+    private readonly Wolverine.ComplianceTests.Fakes.Tracking theTracking = new();
 
     public use_wrappers()
     {
-        theOptions.IncludeType<TransactionalHandler>();
+        IfWolverineIsConfiguredAs(opts =>
+        {
+            opts.IncludeType<TransactionalHandler>();
 
-        theOptions.Services.AddSingleton(theTracking);
-        theOptions.Services.ForSingletonOf<IFakeStore>().Use<FakeStore>();
+            opts.Services.AddSingleton(theTracking);
+            opts.Services.AddSingleton<IFakeStore, FakeStore>();
+        });
     }
 
     [Fact]

@@ -1,5 +1,11 @@
 # Cascading Messages
 
+::: tip
+Cascading messages are just the equivalent of `IMessageBus.PublishAsync()`. Just know that unlike [Side Effects](/guide/handlers/side-effects),
+cascaded messages are handled separately in a later thread and with a completely independent "retry loop" from the 
+originating message.
+:::
+
 ::: info
 One of Wolverine's advantages over previous .NET messaging frameworks is the ability to express many message
 handlers as pure functions for better testability and hopefully more self-explanatory code. Cascading messages are
@@ -374,6 +380,6 @@ public object Handle(PingMessage message)
     return Respond.ToSender(pong);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/TestingSupport/Compliance/Messages.cs#L50-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_respond_to_sender' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/Wolverine.ComplianceTests/Compliance/Messages.cs#L50-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_respond_to_sender' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

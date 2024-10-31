@@ -3,7 +3,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
-using Lamar;
+using Wolverine.Runtime;
 
 namespace Wolverine.Http.CodeGen;
 
@@ -90,7 +90,8 @@ internal class ParsedNullableQueryStringValue : SyncFrame
         }
         else if (_innerTypeFromNullable.IsBoolean())
         {
-            writer.Write($"{_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out {Variable.Usage});");
+            writer.Write(
+                $"if ({_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
         }
         else
         {
@@ -181,7 +182,7 @@ internal class ParsedCollectionQueryStringValue : SyncFrame
 
 internal class QueryStringParameterStrategy : IParameterStrategy
 {
-    public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable variable)
+    public bool TryMatch(HttpChain chain, IServiceContainer container, ParameterInfo parameter, out Variable? variable)
     {
         variable = chain.TryFindOrCreateQuerystringValue(parameter);
         return variable != null;

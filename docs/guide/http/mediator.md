@@ -24,6 +24,8 @@ public class MediatorController : ControllerBase
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Samples/MediatorController.cs#L6-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_as_mediator' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Optimized Minimal API Integration
+
 While that strategy works and doesn't require Wolverine.Http at all, there's an optimized Minimal API approach in
 Wolverine.HTTP to quickly build ASP.Net Core routes with Wolverine message handlers that bypasses some of the 
 performance overhead of "classic mediator" usage.
@@ -43,7 +45,7 @@ app.MapPostToWolverine<CustomRequest, CustomResponse>("/wolverine/request");
 app.MapDeleteToWolverine<CustomRequest, CustomResponse>("/wolverine/request");
 app.MapPutToWolverine<CustomRequest, CustomResponse>("/wolverine/request");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L197-L209' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_optimized_mediator_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L214-L226' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_optimized_mediator_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With this mechanism, Wolverine is able to optimize the runtime function for Minimal API by eliminating IoC service locations

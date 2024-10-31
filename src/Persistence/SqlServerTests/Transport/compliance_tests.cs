@@ -1,7 +1,7 @@
 using IntegrationTests;
 using JasperFx.Core;
 using Shouldly;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine;
 using Wolverine.Configuration;
 using Wolverine.SqlServer;
@@ -43,7 +43,6 @@ public class SqlTransportDurableFixture : TransportComplianceFixture, IAsyncLife
     }
 }
 
-[Collection("sqlserver")]
 public class SqlServerTransport_Durable_Compliance : TransportCompliance<SqlTransportDurableFixture>;
 
 public class SqlTransportBufferedFixture : TransportComplianceFixture, IAsyncLifetime
@@ -86,7 +85,6 @@ public class SqlTransportBufferedFixture : TransportComplianceFixture, IAsyncLif
     }
 }
 
-[Collection("sqlserver")]
 public class SqlServerTransport_Buffered_Compliance : TransportCompliance<SqlTransportBufferedFixture>
 {
     [Fact]

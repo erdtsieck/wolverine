@@ -2,10 +2,10 @@ using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
-using Lamar;
 using Marten;
 using Microsoft.AspNetCore.Http;
 using Wolverine.Http.Policies;
+using Wolverine.Runtime;
 
 namespace Wolverine.Http.Marten;
 
@@ -30,9 +30,9 @@ public class DocumentAttribute : HttpChainParameterAttribute
 
     /// <summary>
     /// Should the absence of this document cause the endpoint to return a 404 Not Found response?
-    /// Default -- for backward compatibility -- is false.
+    /// Default is <c>true</c>.
     /// </summary>
-    public bool Required { get; set; } = false;
+    public bool Required { get; set; } = true;
 
     /// <summary>
     /// If the document is soft-deleted, whether the endpoint should receive the document (<c>true</c>) or NULL (<c>false</c>).
@@ -40,7 +40,7 @@ public class DocumentAttribute : HttpChainParameterAttribute
     /// </summary>
     public bool MaybeSoftDeleted { get; set; } = true;
 
-    public override Variable Modify(HttpChain chain, ParameterInfo parameter, IContainer container)
+    public override Variable Modify(HttpChain chain, ParameterInfo parameter, IServiceContainer container)
     {
         chain.Metadata.Produces(404);
 

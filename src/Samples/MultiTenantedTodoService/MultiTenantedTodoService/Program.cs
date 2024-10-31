@@ -26,7 +26,7 @@ builder.Services.AddMarten(m =>
 
         m.DatabaseSchemaName = "mttodo";
     })
-    .IntegrateWithWolverine(masterDatabaseConnectionString:connectionString);
+    .IntegrateWithWolverine(x => x.MasterDatabaseConnectionString = connectionString);
 
 #endregion
 
@@ -64,6 +64,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+builder.Services.AddWolverineHttp();
 
 #region sample_configuring_tenant_id_detection_for_todo_service
 

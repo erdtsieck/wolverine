@@ -14,27 +14,26 @@ public class publish_and_receive_raw_json : IAsyncLifetime
     public async Task InitializeAsync()
     {
 
-        _sender = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.UseKafka("localhost:29092").AutoProvision();
-                opts.Policies.DisableConventionalLocalRouting();
-
-                opts.Services.AddResourceSetupOnStartup();
-
-                opts.PublishAllMessages().ToKafkaTopic("json").PublishRawJson(new JsonSerializerOptions());
-            }).StartAsync();
-
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:29092").AutoProvision();
+                opts.UseKafka("localhost:9092").AutoProvision();
                 opts.ListenToKafkaTopic("json")
                     .ReceiveRawJson<ColorMessage>();
 
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
 
+        _sender = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.Policies.DisableConventionalLocalRouting();
+
+                opts.Services.AddResourceSetupOnStartup();
+
+                opts.PublishAllMessages().ToKafkaTopic("json").PublishRawJson(new JsonSerializerOptions());
+            }).StartAsync();
     }
 
     [Fact]

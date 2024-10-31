@@ -2,13 +2,14 @@ using System.Diagnostics;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using NSubstitute;
-using TestingSupport;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Wolverine.Transports;
 using Wolverine.Transports.Tcp;
+using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Runtime;

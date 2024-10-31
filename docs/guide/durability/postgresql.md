@@ -60,38 +60,53 @@ use this option which *also* activates PostgreSQL backed message persistence:
 <!-- snippet: sample_using_postgres_transport -->
 <a id='snippet-sample_using_postgres_transport'></a>
 ```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine((context, opts) =>
-    {
-        var connectionString = context.Configuration.GetConnectionString("postgres");
-        opts.UsePostgresqlPersistenceAndTransport(connectionString, "myapp")
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("postgres");
+    opts.UsePostgresqlPersistenceAndTransport(
+            connectionString, 
+            
+            // This argument is the database schema for the envelope storage
+            // If separate logical services are targeting the same physical database,
+            // you should use a separate schema name for each logical application
+            // to make basically *everything* run smoother
+            "myapp", 
+            
+            // This schema name is for the actual PostgreSQL queue tables. If using
+            // the PostgreSQL transport between two logical applications, make sure
+            // to use the same transportSchema!
+            transportSchema:"queues")
 
-            // Tell Wolverine to build out all necessary queue or scheduled message
-            // tables on demand as needed
-            .AutoProvision()
+        // Tell Wolverine to build out all necessary queue or scheduled message
+        // tables on demand as needed
+        .AutoProvision()
 
-            // Optional that may be helpful in testing, but probably bad
-            // in production!
-            .AutoPurgeOnStartup();
+        // Optional that may be helpful in testing, but probably bad
+        // in production!
+        .AutoPurgeOnStartup();
 
-        // Use this extension method to create subscriber rules
-        opts.PublishAllMessages().ToPostgresqlQueue("outbound");
+    // Use this extension method to create subscriber rules
+    opts.PublishAllMessages().ToPostgresqlQueue("outbound");
 
-        // Use this to set up queue listeners
-        opts.ListenToPostgresqlQueue("inbound")
+    // Use this to set up queue listeners
+    opts.ListenToPostgresqlQueue("inbound")
 
-            .CircuitBreaker(cb =>
-            {
-                // fine tune the circuit breaker
-                // policies here
-            })
+        .CircuitBreaker(cb =>
+        {
+            // fine tune the circuit breaker
+            // policies here
+        })
 
-            // Optionally specify how many messages to
-            // fetch into the listener at any one time
-            .MaximumMessagesToReceive(50);
-    }).StartAsync();
+        // Optionally specify how many messages to
+        // fetch into the listener at any one time
+        .MaximumMessagesToReceive(50);
+});
+
+using var host = builder.Build();
+await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/DocumentationSamples.cs#L12-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_postgres_transport' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/DocumentationSamples.cs#L12-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_postgres_transport' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The PostgreSQL transport is strictly queue-based at this point. The queues are configured as durable by default, meaning
@@ -114,7 +129,13 @@ lost if held in memory when the application shuts down unexpectedly.
 If utilizing the PostgreSQL transport with Marten multi-tenancy through separate databases per tenant, the PostgreSQL
 queues will be built an monitored for each tenant database as well as any master database.
 
+## Lightweight Saga Usage <Badge type="tip" text="3.0" />
+
+See the details on [Lightweight Saga Storage](/guide/durability/sagas.html#lightweight-saga-storage) for more information.
+
 ## Integration with Marten
 
 The PostgreSQL message persistence and transport is automatically included with the `AddMarten().IntegrateWithWolverine()`
 configuration syntax.
+
+

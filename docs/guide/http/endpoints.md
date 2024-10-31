@@ -188,16 +188,7 @@ public class HelloEndpoint
     public string Get() => "Hello.";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/NSwagDemonstrator/HelloEndpoint.cs#L5-L13' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_hello_world_with_wolverine_http' title='Start of snippet'>anchor</a></sup>
-<a id='snippet-sample_hello_world_with_wolverine_http-1'></a>
-```cs
-public class HelloEndpoint
-{
-    [WolverineGet("/")]
-    public string Get() => "Hello.";
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/HelloEndpoint.cs#L5-L13' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_hello_world_with_wolverine_http-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/HelloEndpoint.cs#L5-L13' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_hello_world_with_wolverine_http' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Using IResult
@@ -281,7 +272,7 @@ To do so, you'd need to write an implementation of the `IParameterStrategy` inte
 /// <param name="variable">The Variable referring to the input of this parameter</param>
 public interface IParameterStrategy
 {
-    bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable? variable);
+    bool TryMatch(HttpChain chain, IServiceContainer container, ParameterInfo parameter, out Variable? variable);
 }
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/CodeGen/IParameterStrategy.cs#L7-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iparameterstrategy' title='Start of snippet'>anchor</a></sup>
@@ -295,7 +286,7 @@ system time. To do that, we can write this class:
 ```cs
 public class NowParameterStrategy : IParameterStrategy
 {
-    public bool TryMatch(HttpChain chain, IContainer container, ParameterInfo parameter, out Variable? variable)
+    public bool TryMatch(HttpChain chain, IServiceContainer container, ParameterInfo parameter, out Variable? variable)
     {
         if (parameter.Name == "now" && parameter.ParameterType == typeof(DateTimeOffset))
         {
@@ -321,7 +312,7 @@ and register that strategy within our `MapWolverineEndpoints()` set up like so:
 // Customizing parameter handling
 opts.AddParameterHandlingStrategy<NowParameterStrategy>();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L188-L193' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_custom_parameter_handling' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L203-L208' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_custom_parameter_handling' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, here's the application within an HTTP endpoint for extra context:

@@ -1,9 +1,7 @@
 using System.Runtime.CompilerServices;
-using Lamar;
 using Oakton;
 using Wolverine.Attributes;
 
-[assembly: IgnoreAssembly]
 [assembly: JasperFx.Core.TypeScanning.IgnoreAssembly]
 [assembly: OaktonCommandAssembly]
 [assembly: WolverineFeature]
@@ -12,7 +10,7 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("DiagnosticsTests")]
 [assembly: InternalsVisibleTo("PolicyTests")]
 [assembly: InternalsVisibleTo("CircuitBreakingTests")]
-[assembly: InternalsVisibleTo("TestingSupport")]
+[assembly: InternalsVisibleTo("Wolverine.ComplianceTests")]
 [assembly: InternalsVisibleTo("Wolverine.RabbitMq")]
 [assembly: InternalsVisibleTo("Wolverine.RabbitMq.Tests")]
 [assembly: InternalsVisibleTo("Wolverine.AzureServiceBus")]
@@ -31,3 +29,5 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("Wolverine.Pulsar.Tests")]
 [assembly: InternalsVisibleTo("MassTransitInteropTests")]
 [assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")]
+[assembly: InternalsVisibleTo("Wolverine.Http")]
+[assembly: InternalsVisibleTo("Wolverine.Http.Tests")]

@@ -15,6 +15,7 @@ using Wolverine.Http;
 using Wolverine.Http.FluentValidation;
 using Wolverine.Http.Marten;
 using Wolverine.Http.Tests.DifferentAssembly.Validation;
+using Wolverine.Http.Transport;
 using Wolverine.Marten;
 using WolverineWebApi;
 using WolverineWebApi.Marten;
@@ -22,13 +23,21 @@ using WolverineWebApi.Samples;
 using WolverineWebApi.WebSockets;
 using Order = WolverineWebApi.Order;
 
+#region sample_adding_http_services
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
-builder.Services.AddLogging();
+// Necessary services for Wolverine HTTP
+// And don't worry, if you forget this, Wolverine
+// will assert this is missing on startup:(
+builder.Services.AddWolverineHttp();
 
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+#endregion
+
+
+builder.Services.AddLogging();
 builder.Services.AddEndpointsApiExplorer();
 
 #region sample_register_custom_swashbuckle_filter
@@ -53,7 +62,9 @@ builder.Services.AddMarten(opts =>
 {
     opts.Connection(Servers.PostgresConnectionString);
     opts.DatabaseSchemaName = "http";
+    opts.DisableNpgsqlLogging = true;
 }).IntegrateWithWolverine();
+
 
 
 builder.Services.AddResourceSetupOnStartup();
@@ -67,6 +78,8 @@ builder.Host.UseWolverine(opts =>
     // for Wolverine's transactional middleware
     opts.UseEntityFrameworkCoreTransactions();
 
+    opts.Durability.Mode = DurabilityMode.Solo;
+
     opts.Policies.AutoApplyTransactions();
     opts.Policies.OnExceptionOfType(typeof(AlwaysDeadLetterException)).MoveToErrorQueue();
 
@@ -76,6 +89,8 @@ builder.Host.UseWolverine(opts =>
     opts.OptimizeArtifactWorkflow();
     
     opts.Policies.Add<BroadcastClientMessages>();
+
+    opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
 });
 
 builder.Services.ConfigureSystemTextJsonForWolverineOrMinimalApi(o =>
@@ -193,6 +208,8 @@ app.MapWolverineEndpoints(opts =>
     #endregion
 });
 
+// TODO -- consider making this an option within UseWolverine????
+app.MapWolverineHttpTransportEndpoints();
 
 #region sample_optimized_mediator_usage
 

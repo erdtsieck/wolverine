@@ -48,6 +48,16 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+builder.Services.AddWolverineHttp();
+
+// builder is a WebApplicationBuilder
+// in this case
+builder.Services.AddMarten(opts =>
+{
+    // More stuff...
+    
+});
+
 #region sample_opting_into_wolverine_event_publishing
 
 builder.Services.AddMarten(opts =>

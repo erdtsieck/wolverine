@@ -5,7 +5,7 @@ using MartenTests.Persistence.Resiliency;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using Shouldly;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Persistence.Durability;
@@ -86,7 +86,7 @@ public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyn
         };
 
 
-        await theSender.Get<IMessageBus>().ScheduleAsync(item, 1.Days());
+        await theSender.MessageBus().ScheduleAsync(item, 1.Days());
 
         var persistor = theSender.Get<IMessageStore>();
 

@@ -1,5 +1,8 @@
 ﻿using System.Diagnostics;
 using Wolverine.Runtime;
+using Wolverine.Transports;
+using Wolverine.Transports.Local;
+using Wolverine.Util;
 
 namespace Wolverine.ErrorHandling;
 
@@ -15,26 +18,34 @@ internal class MoveToErrorQueueSource : IContinuationSource
 
 internal class MoveToErrorQueue : IContinuation
 {
-    private readonly Exception _exception;
-
     public MoveToErrorQueue(Exception exception)
     {
-        _exception = exception ?? throw new ArgumentNullException(nameof(exception));
+        Exception = exception ?? throw new ArgumentNullException(nameof(exception));
     }
+
+    public Exception Exception { get; }
 
     public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle,
         IWolverineRuntime runtime,
         DateTimeOffset now, Activity? activity)
     {
-        await lifecycle.SendFailureAcknowledgementAsync(
-            $"Moved message {lifecycle.Envelope!.Id} to the Error Queue.\n{_exception}");
+        if (lifecycle.Envelope.Destination.Scheme != TransportConstants.Local)
+        {
+            await lifecycle.SendFailureAcknowledgementAsync(
+                $"Moved message {lifecycle.Envelope!.Id} to the Error Queue.\n{Exception}");
+        }
 
-        await lifecycle.MoveToDeadLetterQueueAsync(_exception);
+        if (lifecycle.Envelope.Message != null)
+        {
+            lifecycle.Envelope.MessageType = lifecycle.Envelope.Message.GetType().ToMessageTypeName();
+        }
+
+        await lifecycle.MoveToDeadLetterQueueAsync(Exception);
 
         activity?.AddEvent(new ActivityEvent(WolverineTracing.MovedToErrorQueue));
 
-        runtime.MessageTracking.MessageFailed(lifecycle.Envelope, _exception);
-        runtime.MessageTracking.MovedToErrorQueue(lifecycle.Envelope, _exception);
+        runtime.MessageTracking.MessageFailed(lifecycle.Envelope, Exception);
+        runtime.MessageTracking.MovedToErrorQueue(lifecycle.Envelope, Exception);
     }
 
     public override string ToString()
@@ -44,7 +55,7 @@ internal class MoveToErrorQueue : IContinuation
 
     protected bool Equals(MoveToErrorQueue other)
     {
-        return Equals(_exception, other._exception);
+        return Equals(Exception, other.Exception);
     }
 
     public override bool Equals(object? obj)
@@ -69,6 +80,6 @@ internal class MoveToErrorQueue : IContinuation
 
     public override int GetHashCode()
     {
-        return _exception.GetHashCode();
+        return Exception.GetHashCode();
     }
 }

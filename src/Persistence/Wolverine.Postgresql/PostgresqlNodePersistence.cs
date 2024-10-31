@@ -1,5 +1,7 @@
+using System.Data;
 using System.Data.Common;
 using JasperFx.Core;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using NpgsqlTypes;
 using Weasel.Core;
@@ -16,11 +18,12 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
 {
     public static int LeaderLockId = 9999999;
     private readonly DbObjectName _assignmentTable;
+    private readonly IMessageDatabase _database;
+    private readonly NpgsqlDataSource _dataSource;
+    private readonly int _lockId;
     private readonly DbObjectName _nodeTable;
 
     private readonly DatabaseSettings _settings;
-    private readonly IMessageDatabase _database;
-    private readonly NpgsqlDataSource _dataSource;
 
     public PostgresqlNodePersistence(DatabaseSettings settings, PostgresqlMessageStore database,
         NpgsqlDataSource dataSource)
@@ -28,9 +31,12 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
         _settings = settings;
         _database = database;
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
-        _nodeTable = new DbObjectName(settings.SchemaName ?? "public", DatabaseConstants.NodeTableName);
+        var schemaName = settings.SchemaName ?? "public";
+        _nodeTable = new DbObjectName(schemaName, NodeTableName);
         _assignmentTable =
-            new DbObjectName(settings.SchemaName ?? "public", DatabaseConstants.NodeAssignmentsTableName);
+            new DbObjectName(schemaName, NodeAssignmentsTableName);
+
+        _lockId = schemaName.GetDeterministicHashCode();
     }
 
     public Task ClearAllAsync(CancellationToken cancellationToken)
@@ -43,7 +49,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
     {
         var cmd = _dataSource.CreateCommand(
                 $"insert into {_nodeTable} (id, uri, capabilities, description) values (:id, :uri, :capabilities, :description) returning node_number")
-            .With("id", node.Id)
+            .With("id", node.NodeId)
             .With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString())
             .With("description", node.Description);
 
@@ -55,12 +61,17 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
         return (int)raw!;
     }
 
-    public Task DeleteAsync(Guid nodeId)
+    public Task DeleteAsync(Guid nodeId, int assignedNodeNumber)
     {
-        if (_database.HasDisposed) return Task.CompletedTask;
+        if (_database.HasDisposed)
+        {
+            return Task.CompletedTask;
+        }
 
-        return _dataSource.CreateCommand($"delete from {_nodeTable} where id = :id")
+        return _dataSource.CreateCommand(
+                $"delete from {_nodeTable} where id = :id;update {_settings.SchemaName}.{IncomingTable} set {OwnerId} = 0 where {OwnerId} = :number;update {_settings.SchemaName}.{OutgoingTable} set {OwnerId} = 0 where {OwnerId} = :number;")
             .With("id", nodeId)
+            .With("number", assignedNodeNumber)
             .ExecuteNonQueryAsync();
     }
 
@@ -78,7 +89,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
             nodes.Add(node);
         }
 
-        var dict = nodes.ToDictionary(x => x.Id);
+        var dict = nodes.ToDictionary(x => x.NodeId);
 
         await reader.NextResultAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -96,7 +107,10 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
 
     public async Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken)
     {
-        if (_database.HasDisposed) return null;
+        if (_database.HasDisposed)
+        {
+            return null;
+        }
 
         await using var cmd = _dataSource.CreateCommand(
                 $"select {NodeColumns} from {_nodeTable} where id = :id;select {Id}, {NodeId}, {Started} from {_assignmentTable} where node_id = :id;")
@@ -206,50 +220,6 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
         return leader;
     }
 
-    public async Task<Uri?> FindLeaderControlUriAsync(Guid selfId)
-    {
-        if (_database.HasDisposed) return null;
-
-        var raw = await _dataSource
-            .CreateCommand(
-                $"select uri from {_nodeTable} inner join {_assignmentTable} on {_nodeTable}.id = {_assignmentTable}.node_id where {_assignmentTable}.id = :id")
-            .With("id", NodeAgentController.LeaderUri.ToString())
-            .ExecuteScalarAsync();
-
-        return raw == null ? null : new Uri((string)raw);
-    }
-
-    public async Task<IReadOnlyList<Uri>> LoadAllOtherNodeControlUrisAsync(Guid selfId)
-    {
-        var list = await _dataSource.CreateCommand($"select uri from {_nodeTable} where id != :id").With("id", selfId)
-            .FetchListAsync<string>();
-
-        return list.Select(x => x!.ToUri()).ToList();
-    }
-
-    [Obsolete("Will be removed in Wolverine 3.0")]
-    public async Task<IReadOnlyList<WolverineNode>> LoadAllStaleNodesAsync(DateTimeOffset staleTime,
-        CancellationToken cancellationToken)
-    {
-        var cmd = _dataSource
-            .CreateCommand($"select id, uri from {_nodeTable} where health_check < :stale")
-            .With("stale", staleTime);
-
-        var nodes = await cmd.FetchListAsync<WolverineNode>(async reader =>
-        {
-            var id = await reader.GetFieldValueAsync<Guid>(0, cancellationToken);
-            var raw = await reader.GetFieldValueAsync<string>(1, cancellationToken);
-
-            return new WolverineNode
-            {
-                Id = id,
-                ControlUri = new Uri(raw)
-            };
-        }, cancellationToken);
-
-        return nodes;
-    }
-
     public async Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)
     {
         await _dataSource.CreateCommand($"update {_nodeTable} set health_check = :now where id = :id")
@@ -270,16 +240,67 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
             .FetchListAsync<int>();
     }
 
+    public Task LogRecordsAsync(params NodeRecord[] records)
+    {
+        if (records.Length == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var op = new PersistNodeRecord(_settings, records);
+        return _database.EnqueueAsync(op);
+    }
+
+    public async Task<IReadOnlyList<NodeRecord>> FetchRecentRecordsAsync(int count)
+    {
+        if (count <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(count), "Must be a positive number");
+        }
+
+        Func<DbDataReader, Task<NodeRecord>> readRecord = async reader =>
+        {
+            return new NodeRecord
+            {
+                NodeNumber = await reader.GetFieldValueAsync<int>(0),
+                RecordType = Enum.Parse<NodeRecordType>(await reader.GetFieldValueAsync<string>(1)),
+                Timestamp = await reader.GetFieldValueAsync<DateTimeOffset>(2),
+                Description = await reader.GetFieldValueAsync<string>(3)
+            };
+        };
+
+        return await _dataSource
+            .CreateCommand(
+                $"select node_number, event_name, timestamp, description from {_settings.SchemaName}.{NodeRecordTableName} order by id desc LIMIT :limit")
+            .With("limit", count)
+            .FetchListAsync(readRecord);
+    }
+
+    public bool HasLeadershipLock()
+    {
+        return _database.AdvisoryLock.HasLock(_lockId);
+    }
+
+    public Task<bool> TryAttainLeadershipLockAsync(CancellationToken token)
+    {
+        return _database.AdvisoryLock.TryAttainLockAsync(_lockId, token);
+    }
+
+    public Task ReleaseLeadershipLockAsync()
+    {
+        return _database.AdvisoryLock.ReleaseLockAsync(_lockId);
+    }
+
     private async Task<WolverineNode> readNodeAsync(DbDataReader reader)
     {
         var node = new WolverineNode
         {
-            Id = await reader.GetFieldValueAsync<Guid>(0),
-            AssignedNodeId = await reader.GetFieldValueAsync<int>(1),
+            NodeId = await reader.GetFieldValueAsync<Guid>(0),
+            AssignedNodeNumber = await reader.GetFieldValueAsync<int>(1),
             Description = await reader.GetFieldValueAsync<string>(2),
             ControlUri = (await reader.GetFieldValueAsync<string>(3)).ToUri(),
             Started = await reader.GetFieldValueAsync<DateTimeOffset>(4),
-            LastHealthCheck = await reader.GetFieldValueAsync<DateTimeOffset>(5),
+            LastHealthCheck = await reader.GetFieldValueAsync<DateTimeOffset>(5)
         };
 
         var capabilities = await reader.GetFieldValueAsync<string[]>(6);
@@ -302,33 +323,114 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
 
         return null;
     }
+}
 
-    public Task LogRecordsAsync(params NodeRecord[] records)
+internal class AdvisoryLock : IAdvisoryLock
+{
+    private readonly string _databaseName;
+    private readonly List<int> _locks = new();
+    private readonly ILogger _logger;
+    private readonly NpgsqlDataSource _source;
+    private NpgsqlConnection _conn;
+
+    public AdvisoryLock(NpgsqlDataSource source, ILogger logger, string databaseName)
     {
-        if (records.Length == 0) return Task.CompletedTask;
-
-        var op = new PersistNodeRecord(_settings, records);
-        return _database.EnqueueAsync(op);
+        _source = source;
+        _logger = logger;
+        _databaseName = databaseName;
     }
 
-    public async Task<IReadOnlyList<NodeRecord>> FetchRecentRecordsAsync(int count)
+    public bool HasLock(int lockId)
     {
-        if (count <= 0) throw new ArgumentOutOfRangeException(nameof(count), "Must be a positive number");
+        return _conn is not { State: ConnectionState.Closed } && _locks.Contains(lockId);
+    }
 
-        Func<DbDataReader, Task<NodeRecord>> readRecord = async reader =>
+    public async Task<bool> TryAttainLockAsync(int lockId, CancellationToken token)
+    {
+        if (_conn == null)
         {
-            return new NodeRecord
+            _conn = _source.CreateConnection();
+            await _conn.OpenAsync(token).ConfigureAwait(false);
+        }
+
+        if (_conn.State == ConnectionState.Closed)
+        {
+            try
             {
-                NodeNumber = await reader.GetFieldValueAsync<int>(0),
-                RecordType = Enum.Parse<NodeRecordType>(await reader.GetFieldValueAsync<string>(1)),
-                Timestamp = await reader.GetFieldValueAsync<DateTimeOffset>(2),
-                Description = await reader.GetFieldValueAsync<string>(3)
+                await _conn.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error trying to clean up and restart an advisory lock connection");
+            }
+            finally
+            {
+                _conn = null;
+            }
 
-            };
-        };
+            return false;
+        }
 
-        return await _dataSource.CreateCommand($"select node_number, event_name, timestamp, description from {_settings.SchemaName}.{DatabaseConstants.NodeRecordTableName} order by id desc LIMIT :limit")
-            .With("limit", count)
-            .FetchListAsync(readRecord);
+
+        var attained = await _conn.TryGetGlobalLock(lockId, token).ConfigureAwait(false);
+        if (attained == AttainLockResult.Success)
+        {
+            _locks.Add(lockId);
+            return true;
+        }
+
+        return false;
+    }
+
+    public async Task ReleaseLockAsync(int lockId)
+    {
+        if (!_locks.Contains(lockId))
+        {
+            return;
+        }
+
+        if (_conn == null || _conn.State == ConnectionState.Closed)
+        {
+            _locks.Remove(lockId);
+            return;
+        }
+
+        var cancellation = new CancellationTokenSource();
+        cancellation.CancelAfter(1.Seconds());
+
+        await _conn.ReleaseGlobalLock(lockId, cancellation.Token).ConfigureAwait(false);
+        _locks.Remove(lockId);
+
+        if (!_locks.Any())
+        {
+            await _conn.CloseAsync().ConfigureAwait(false);
+            await _conn.DisposeAsync().ConfigureAwait(false);
+            _conn = null;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_conn == null)
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (var i in _locks) await _conn.ReleaseGlobalLock(i, CancellationToken.None).ConfigureAwait(false);
+
+            await _conn.CloseAsync().ConfigureAwait(false);
+            await _conn.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error trying to dispose of advisory locks for database {Identifier}",
+                _databaseName);
+        }
+        finally
+        {
+            await _conn.DisposeAsync().ConfigureAwait(false);
+        }
     }
 }

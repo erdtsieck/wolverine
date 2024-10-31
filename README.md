@@ -4,15 +4,16 @@ Wolverine
 [![Discord](https://img.shields.io/discord/1074998995086225460?color=blue&label=Chat%20on%20Discord)](https://discord.gg/WMxrvegf8H)
 
 Wolverine is a *Next Generation .NET Mediator and Message Bus*. Check out
-the [documentation website at https://wolverine.netlify.app](https://wolverine.netlify.app).
+the [documentation website at https://wolverinefx.net/](https://wolverinefx.net/).
 
 ## Support Plans
 
 <div align="center">
-    <img src="https://www.jasperfx.net/wp-content/uploads/2023/07/logo-alt-min.png" alt="JasperFx logo" width="70%">
+    <img src="https://www.jasperfx.net/logo.png" alt="JasperFx logo" width="70%">
 </div>
 
-While Wolverine is open source, [JasperFx Software offers paid support and consulting contracts](https://bit.ly/3szhwT2) for Wolverine. 
+While Wolverine is open source, [JasperFx Software offers paid support and consulting contracts](https://bit.ly/3szhwT2)
+for Wolverine.
 
 ## Help us keep working on this project 💚
 

@@ -8,18 +8,19 @@ namespace Internal.Generated.WolverineHandlers
     // START: IncrementBHandler1255189857
     public class IncrementBHandler1255189857 : Wolverine.Runtime.Handlers.MessageHandler
     {
-        private readonly Microsoft.Extensions.Logging.ILogger<MartenTests.LetterAggregateHandler> _logger_of_LetterAggregateHandler863191596;
+        private readonly Microsoft.Extensions.Logging.ILogger<MartenTests.LetterAggregateHandler> _logger;
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
 
-        public IncrementBHandler1255189857([Lamar.Named("logger2")] Microsoft.Extensions.Logging.ILogger<MartenTests.LetterAggregateHandler> logger_of_LetterAggregateHandler863191596, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
+        public IncrementBHandler1255189857(Microsoft.Extensions.Logging.ILogger<MartenTests.LetterAggregateHandler> logger, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
         {
-            _logger_of_LetterAggregateHandler863191596 = logger_of_LetterAggregateHandler863191596;
+            _logger = logger;
             _outboxedSessionFactory = outboxedSessionFactory;
         }
 
+
+
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
-            var letterAggregateHandler = new MartenTests.LetterAggregateHandler();
             // The actual message body
             var incrementB = (MartenTests.IncrementB)context.Envelope.Message;
 
@@ -29,16 +30,19 @@ namespace Internal.Generated.WolverineHandlers
             // Loading Marten aggregate
             var eventStream = await eventStore.FetchForWriting<MartenTests.LetterAggregate>(incrementB.LetterAggregateId, cancellation).ConfigureAwait(false);
 
+            var letterAggregateHandler = new MartenTests.LetterAggregateHandler();
             
             // The actual message execution
-            var outgoing1 = await letterAggregateHandler.Handle(incrementB, eventStream.Aggregate, _logger_of_LetterAggregateHandler863191596).ConfigureAwait(false);
+            var outgoing1 = await letterAggregateHandler.Handle(incrementB, eventStream.Aggregate, _logger).ConfigureAwait(false);
 
             eventStream.AppendOne(outgoing1);
             await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
         }
+
     }
 
     // END: IncrementBHandler1255189857
     
     
 }
+

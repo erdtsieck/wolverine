@@ -6,8 +6,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Oakton.Resources;
 using Shouldly;
-using TestingSupport;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine;
 using Wolverine.Configuration;
 using Wolverine.Marten;
@@ -20,12 +20,13 @@ using Wolverine.Util;
 
 namespace PolicyTests;
 
-public class endpoint_policy_configuration : IDisposable
+public class endpoint_policy_configuration : IAsyncDisposable
 {
     private IHost _host;
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
+        await _host.StopAsync();
         _host.Dispose();
     }
 

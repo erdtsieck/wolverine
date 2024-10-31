@@ -49,6 +49,23 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         await database.Inbox.ScheduleExecutionAsync(envelope);
     }
 
+    public async Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
+    {
+        string tenantId = null;
+        try
+        {
+            tenantId = incoming.Select(x => x.TenantId).Distinct().Single();
+        }
+        catch (Exception e)
+        {
+            throw new ArgumentOutOfRangeException(nameof(incoming),
+                "Invalid in this case to use a mixed bag of tenanted envelopes");
+        }
+        
+        var database = await GetDatabaseAsync(tenantId);
+        await database.ReassignIncomingAsync(ownerId, incoming);
+    }
+
     async Task IMessageInbox.MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
         var database = await GetDatabaseAsync(envelope.TenantId);
@@ -94,6 +111,18 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         }
     }
 
+    public async Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
+    {
+        // Really just here for diagnostics
+        var list = new List<Envelope>();
+        foreach (var database in databases())
+        {
+            list.AddRange(await database.LoadPageOfGloballyOwnedIncomingAsync(listenerAddress, limit));
+        }
+
+        return list;
+    }
+
     async Task IMessageInbox.ScheduleJobAsync(Envelope envelope)
     {
         var database = await GetDatabaseAsync(envelope.TenantId);
@@ -104,6 +133,32 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
     {
         var database = await GetDatabaseAsync(envelope.TenantId);
         await database.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
+    }
+
+    public async Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes)
+    {
+        var groups = envelopes.GroupBy(x => x.TenantId).ToArray();
+
+        if (groups.Length == 1)
+        {
+            var database = await GetDatabaseAsync(groups[0].Key);
+            await database.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelopes);
+            return;
+        }
+
+        foreach (var group in groups)
+        {
+            try
+            {
+                var database = await GetDatabaseAsync(group.Key);
+                await database.Inbox.MarkIncomingEnvelopeAsHandledAsync(group.ToArray());
+            }
+            catch (UnknownTenantException e)
+            {
+                _logger.LogError(e, "Encountered unknown tenant {TenantId} while trying to store incoming envelopes",
+                    group.Key);
+            }
+        }
     }
 
     Task IMessageInbox.ReleaseIncomingAsync(int ownerId)
@@ -382,6 +437,22 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
     Task IMessageStoreAdmin.ReleaseAllOwnershipAsync()
     {
         return executeOnAllAsync(d => d.Admin.ReleaseAllOwnershipAsync());
+    }
+
+    Task IMessageStoreAdmin.ReleaseAllOwnershipAsync(int ownerId)
+    {
+        return executeOnAllAsync(async d =>
+        {
+            try
+            {
+                await d.Admin.ReleaseAllOwnershipAsync(ownerId);
+            }
+            catch (ObjectDisposedException)
+            {
+                // Can happen when the host is disposed without going through a clean
+                // StopAsync()
+            }
+        });
     }
 
     Task IMessageStoreAdmin.CheckConnectivityAsync(CancellationToken token)

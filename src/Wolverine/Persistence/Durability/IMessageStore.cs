@@ -13,6 +13,7 @@ public interface IMessageInbox
     Task ScheduleJobAsync(Envelope envelope);
 
     Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope);
+    Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes);
 
     // Good as is
     Task ReleaseIncomingAsync(int ownerId);
@@ -45,17 +46,6 @@ public record DeadLetterEnvelope(
     DateTimeOffset SentAt,
     bool Replayable
     );
-
-public class DeadLetterEnvelopeQueryParameters
-{
-    public uint Limit { get; set; } = 100;
-    public Guid? StartId { get; set; }
-    public string? MessageType { get; set; }
-    public string? ExceptionType { get; set; }
-    public string? ExceptionMessage { get; set; }
-    public DateTimeOffset? From { get; set; }
-    public DateTimeOffset? Until { get; set; }
-}
 
 public interface IDeadLetters
 {
@@ -120,6 +110,8 @@ public interface IMessageStore : IAsyncDisposable
     IAgent StartScheduledJobs(IWolverineRuntime runtime);
 
     IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime);
+    Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
+    Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming);
 }
 
 public record IncomingCount(Uri Destination, int Count);

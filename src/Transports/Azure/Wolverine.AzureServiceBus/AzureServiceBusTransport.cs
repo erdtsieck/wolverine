@@ -33,8 +33,13 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
         IdentifierDelimiter = ".";
     }
 
+    public override string SanitizeIdentifier(string identifier)
+    {
+        return identifier.ToLowerInvariant();
+    }
+
     /// <summary>
-    /// Is this transport connection allowed to build and use response and retry queues
+    /// Is this transport connection allowed to build and use response, retry, and control queues
     /// for just this node?
     /// </summary>
     public bool SystemQueuesEnabled { get; set; } = true;
@@ -90,9 +95,8 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
         retryQueue.IsListener = true;
         retryQueue.EndpointName = RetryEndpointName;
         retryQueue.Role = EndpointRole.System;
-
+        
         RetryQueue = retryQueue;
-
     }
 
     public override Endpoint? ReplyEndpoint()

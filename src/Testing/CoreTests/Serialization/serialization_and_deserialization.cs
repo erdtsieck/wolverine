@@ -1,5 +1,5 @@
 ﻿using JasperFx.Core;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine.Runtime.Serialization;
 using Xunit;
 
@@ -214,5 +214,12 @@ public class serialization_and_deserialization_of_single_message
     {
         outgoing.GroupId = Guid.NewGuid().ToString();
         incoming.GroupId.ShouldBe(outgoing.GroupId);
+    }
+    
+    [Fact]
+    public void partition_key()
+    {
+        outgoing.PartitionKey = Guid.NewGuid().ToString();
+        incoming.PartitionKey.ShouldBe(outgoing.PartitionKey);
     }
 }

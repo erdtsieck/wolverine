@@ -3,14 +3,14 @@ using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Marten;
 using Wolverine.Runtime;
 using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests.Bugs;
 
-public class Bug_710_rabbit_exchange_errorneously_used_for_system_queues : RabbitMQContext
+public class Bug_710_rabbit_exchange_errorneously_used_for_system_queues 
 {
     [Fact]
     public async Task start_system_with_declared_exchange()

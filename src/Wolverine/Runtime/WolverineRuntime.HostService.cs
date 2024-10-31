@@ -1,6 +1,5 @@
 using JasperFx.CodeGeneration;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Persistence.Durability;
@@ -106,7 +105,7 @@ public partial class WolverineRuntime
 
     public void WarnIfAnyAsyncExtensions()
     {
-        if (!_hasAppliedAsyncExtensions && _container.Model.HasRegistrationFor(typeof(IAsyncWolverineExtension)))
+        if (!_hasAppliedAsyncExtensions && _container.HasRegistrationFor(typeof(IAsyncWolverineExtension)))
         {
             Logger.LogInformation($"This application has asynchronous Wolverine extensions registered, but they have not been applied yet. You may want to call IServiceCollection.{nameof(ApplyAsyncExtensions)}() before configuring Wolverine.HTTP");
         }
@@ -148,13 +147,30 @@ public partial class WolverineRuntime
 
         _hasStopped = true;
 
-        // This is important!
-        _container.As<Container>().DisposalLock = DisposalLock.Unlocked;
-
         // Latch health checks ASAP
         DisableHealthChecks();
+        
+        if (_persistence.IsValueCreated)
+        {
+            try
+            {
+                await Storage.DrainAsync();
+            }
+            catch (TaskCanceledException)
+            {
+                // This can timeout, just swallow it here
+            }
 
-        await Storage.DrainAsync();
+            try
+            {
+                // New to 3.0, try to release any ownership on the way out. Do this *after* the drain
+                await Storage.Admin.ReleaseAllOwnershipAsync(DurabilitySettings.AssignedNodeNumber);
+            }
+            catch (ObjectDisposedException)
+            {
+                // This could happen if DisposeAsync() is called before StopAsync()
+            }
+        }
 
         // This MUST be called before draining the endpoints
         await teardownAgentsAsync();

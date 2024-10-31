@@ -1,6 +1,7 @@
 using System.Text;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
@@ -200,81 +201,65 @@ public static class TestingExtensions
     {
         return host.GetRuntime().Agents.AllRunningAgentUris();
     }
+    
+    /// <summary>
+    /// Wait for this current host to assume the leadership of the
+    /// system
+    /// </summary>
+    /// <param name="host"></param>
+    /// <param name="timeout"></param>
+    /// <returns></returns>
+    public static Task<bool> WaitUntilAssumesLeadershipAsync(this IHost host, TimeSpan timeout)
+    {
+        var waiter = new LeadershipWaiter(host);
+        return waiter.Start(timeout);
+    }
 
-//     public class AssignmentWaiter : IObserver<IWolverineEvent>
-//     {
-//         private readonly TaskCompletionSource<bool> _completion = new();
-//
-//         private IDisposable _unsubscribe;
-//         private readonly WolverineTracker _tracker;
-//
-//         public Dictionary<Guid, int> AgentCountByHost { get; } = new();
-//         public string AgentScheme { get; set; }
-//
-//         public AssignmentWaiter(IHost leader)
-//         {
-//             _tracker = leader.GetRuntime().Tracker;
-//         }
-//
-//         public void ExpectRunningAgents(IHost host, int runningCount)
-//         {
-//             var id = host.GetRuntime().Options.UniqueNodeId;
-//             AgentCountByHost[id] = runningCount;
-//         }
-//
-//         public Task<bool> Start(TimeSpan timeout)
-//         {
-//             if (HasReached()) return Task.FromResult(true);
-//
-//             _unsubscribe = _tracker.Subscribe(this);
-//
-//             var timeout1 = new CancellationTokenSource(timeout);
-//             timeout1.Token.Register(() =>
-//             {
-//                 _completion.TrySetException(new TimeoutException(
-//                     "Did not reach the expected state or message in time"));
-//             });
-//
-//
-//             return _completion.Task;
-//         }
-//
-//         public bool HasReached()
-//         {
-//             foreach (var pair in AgentCountByHost)
-//             {
-//                 Func<Uri, bool> filter = AgentScheme.IsEmpty()
-//                     ? x => !x.Scheme.StartsWith("wolverine")
-//                     : x => x.Scheme.EqualsIgnoreCase(AgentScheme);
-//
-//                 var runningCount = _tracker.Agents.ToArray().Where(x => filter(x.Key)).Count(x => x.Value == pair.Key);
-//                 if (pair.Value != runningCount) return false;
-//             }
-//
-//             return true;
-//         }
-//
-//         public void OnCompleted()
-//         {
-//         }
-//
-//         public void OnError(Exception error)
-//         {
-//             _completion.SetException(error);
-//         }
-//
-//         public void OnNext(IWolverineEvent value)
-//         {
-//             if (HasReached())
-//             {
-//                 _completion.TrySetResult(true);
-//                 _unsubscribe.Dispose();
-//             }
-//         }
-//     }
-// }
+    internal class LeadershipWaiter
+    {
+        private readonly WolverineRuntime _runtime;
 
-// Used internally by the method above
+        public LeadershipWaiter(IHost host)
+        {
+            _runtime = host.GetRuntime();
+        }
+
+        public Task<bool> Start(TimeSpan timeout)
+        {
+            if (hasReached()) return Task.FromResult(true);
+            
+            var timeout1 = new CancellationTokenSource(timeout);
+            timeout1.CancelAfter(timeout);
+            return Task.Factory.StartNew(async () =>
+            {
+                try
+                {
+                    while (!timeout1.IsCancellationRequested)
+                    {
+                        if (hasReached()) return true;
+                        await Task.Delay(25.Milliseconds(), timeout1.Token);
+                    }
+
+                    if (hasReached()) return true;
+
+                    throw new TimeoutException("Did not assume the leadership in the time allowed");
+                }
+                catch (TaskCanceledException)
+                {
+                    if (hasReached()) return true;
+
+                    throw new TimeoutException("Did not assume the leadership in the time allowed");
+                }
+            }, timeout1.Token).Unwrap();
+        }
+
+        private bool hasReached()
+        {
+            return _runtime.IsLeader();
+        }
+    }
+    
+    // Used internally by the method above
     public class AssignmentWaiter
     {
         public Dictionary<Guid, int> AgentCountByHost { get; } = new();
@@ -340,9 +325,9 @@ public static class TestingExtensions
 
             writer.WriteLine("According to the database...");
 
-            foreach (var node in nodes.OrderBy(x => x.AssignedNodeId))
+            foreach (var node in nodes.OrderBy(x => x.AssignedNodeNumber))
             {
-                writer.WriteLine($"Node {node.AssignedNodeId} is running:");
+                writer.WriteLine($"Node {node.AssignedNodeNumber} is running:");
                 foreach (var uri in node.ActiveAgents.OrderBy(x => x.ToString()))
                 {
                     writer.WriteLine(uri);
@@ -351,10 +336,10 @@ public static class TestingExtensions
 
             writer.WriteLine();
             writer.WriteLine("According to the runtimes");
-            foreach (var node in nodes.OrderBy(x => x.AssignedNodeId))
+            foreach (var node in nodes.OrderBy(x => x.AssignedNodeNumber))
             {
-                writer.WriteLine($"Node {node.AssignedNodeId} is running:");
-                var runtime = _runtimes[node.Id];
+                writer.WriteLine($"Node {node.AssignedNodeNumber} is running:");
+                var runtime = _runtimes[node.NodeId];
 
                 foreach (var uri in runtime.AllRunningAgentUris().OrderBy(x => x.ToString()))
                 {
@@ -381,5 +366,30 @@ public static class TestingExtensions
 
             return true;
         }
+    }
+
+    /// <summary>
+    /// Just overrides the Wolverine configuration to run in "solo" mode
+    /// that is advantageous in testing because the Wolverine application can
+    /// start up faster
+    /// </summary>
+    /// <param name="services"></param>
+    /// <returns></returns>
+    public static IServiceCollection RunWolverineInSoloMode(this IServiceCollection services)
+    {
+        return services.AddSingleton<IWolverineExtension, RunWolverineInSoloMode>();
+    }
+}
+
+/// <summary>
+/// Just overrides the Wolverine configuration to run in "solo" mode
+/// that is advantageous in testing because the Wolverine application can
+/// start up faster
+/// </summary>
+internal class RunWolverineInSoloMode : IWolverineExtension
+{
+    public void Configure(WolverineOptions options)
+    {
+        options.Durability.Mode = DurabilityMode.Solo;
     }
 }

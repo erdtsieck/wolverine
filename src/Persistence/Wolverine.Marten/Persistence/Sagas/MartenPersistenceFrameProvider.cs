@@ -1,9 +1,9 @@
 ﻿using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Marten;
 using Marten.Events;
+using Marten.Metadata;
 using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
 using Wolverine.Persistence;
@@ -14,19 +14,19 @@ namespace Wolverine.Marten.Persistence.Sagas;
 
 internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
 {
-    public bool CanPersist(Type entityType, IContainer container, out Type persistenceService)
+    public bool CanPersist(Type entityType, IServiceContainer container, out Type persistenceService)
     {
         persistenceService = typeof(IDocumentSession);
         return true;
     }
 
-    public Type DetermineSagaIdType(Type sagaType, IContainer container)
+    public Type DetermineSagaIdType(Type sagaType, IServiceContainer container)
     {
         var store = container.GetInstance<IDocumentStore>();
         return store.Options.FindOrResolveDocumentType(sagaType).IdType;
     }
 
-    public void ApplyTransactionSupport(IChain chain, IContainer container)
+    public void ApplyTransactionSupport(IChain chain, IServiceContainer container)
     {
         if (!chain.Middleware.OfType<TransactionalFrame>().Any())
         {
@@ -38,15 +38,12 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
                 saveChanges.CommentText = "Commit any outstanding Marten changes";
                 chain.Postprocessors.Add(saveChanges);
 
-                var methodCall = MethodCall.For<MessageContext>(x => x.FlushOutgoingMessagesAsync());
-                methodCall.CommentText = "Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536";
-
-                chain.Postprocessors.Add(methodCall);
+                chain.Postprocessors.Add(new FlushOutgoingMessages());
             }
         }
     }
 
-    public bool CanApply(IChain chain, IContainer container)
+    public bool CanApply(IChain chain, IServiceContainer container)
     {
         if (chain is SagaChain)
         {
@@ -55,33 +52,39 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
 
         if (chain.ReturnVariablesOfType<IMartenOp>().Any()) return true;
 
-        return
-               chain.ServiceDependencies(container, new []{typeof(IDocumentSession), typeof(IQuerySession)}).Any(x => x == typeof(IDocumentSession) || x.Closes(typeof(IEventStream<>)));
+        var serviceDependencies = chain
+            .ServiceDependencies(container, new []{typeof(IDocumentSession), typeof(IQuerySession)}).ToArray();
+        return serviceDependencies.Any(x => x == typeof(IDocumentSession) || x.Closes(typeof(IEventStream<>)));
     }
 
-    public Frame DetermineLoadFrame(IContainer container, Type sagaType, Variable sagaId)
+    public Frame DetermineLoadFrame(IServiceContainer container, Type sagaType, Variable sagaId)
     {
         return new LoadDocumentFrame(sagaType, sagaId);
     }
 
-    public Frame DetermineInsertFrame(Variable saga, IContainer container)
+    public Frame DetermineInsertFrame(Variable saga, IServiceContainer container)
     {
         return new DocumentSessionOperationFrame(saga, nameof(IDocumentSession.Insert));
     }
 
-    public Frame CommitUnitOfWorkFrame(Variable saga, IContainer container)
+    public Frame CommitUnitOfWorkFrame(Variable saga, IServiceContainer container)
     {
         var call = MethodCall.For<IDocumentSession>(x => x.SaveChangesAsync(default));
         call.CommentText = "Commit all pending changes";
         return call;
     }
 
-    public Frame DetermineUpdateFrame(Variable saga, IContainer container)
+    public Frame DetermineUpdateFrame(Variable saga, IServiceContainer container)
     {
+        if (saga.VariableType.CanBeCastTo<IRevisioned>())
+        {
+            return new UpdateSagaRevisionFrame(saga);
+        }
+        
         return new DocumentSessionOperationFrame(saga, nameof(IDocumentSession.Update));
     }
 
-    public Frame DetermineDeleteFrame(Variable sagaId, Variable saga, IContainer container)
+    public Frame DetermineDeleteFrame(Variable sagaId, Variable saga, IServiceContainer container)
     {
         return new DocumentSessionOperationFrame(saga, nameof(IDocumentSession.Delete));
     }

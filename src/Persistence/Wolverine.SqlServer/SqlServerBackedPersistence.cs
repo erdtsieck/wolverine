@@ -1,11 +1,16 @@
 ﻿using System.Data.Common;
+using JasperFx.CodeGeneration.Model;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Weasel.Core.Migrations;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Sagas;
 using Wolverine.SqlServer.Persistence;
+using Wolverine.SqlServer.Sagas;
 using Wolverine.SqlServer.Util;
 
 namespace Wolverine.SqlServer;
@@ -26,14 +31,14 @@ internal class SqlServerBackedPersistence : IWolverineExtension
 
         options.CodeGeneration.Sources.Add(new DatabaseBackedPersistenceMarker());
 
-        options.Services.For<SqlConnection>().Use<SqlConnection>();
+        options.Services.AddScoped<SqlConnection, SqlConnection>();
 
-        options.Services.Add(new ServiceDescriptor(typeof(SqlConnection),
-            new SqlConnectionInstance(typeof(SqlConnection))));
-        options.Services.Add(new ServiceDescriptor(typeof(DbConnection),
-            new SqlConnectionInstance(typeof(DbConnection))));
+        options.CodeGeneration.Sources.Add(new SqlConnectionSource());
 
         // Don't overwrite the EF Core transaction support if it's there
         options.CodeGeneration.AddPersistenceStrategy<SqlServerPersistenceFrameProvider>();
+        
+        options.Services.AddSingleton<IDatabaseSagaStorage>(s => (IDatabaseSagaStorage)s.GetRequiredService<IMessageStore>());
     }
 }
+

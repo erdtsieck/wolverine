@@ -1,7 +1,7 @@
-import {bundledLanguages} from 'shiki';
 import { withMermaid } from "vitepress-plugin-mermaid"
+import { DefaultTheme, UserConfig } from 'vitepress'
 
-export default withMermaid( {
+const config: UserConfig<DefaultTheme.Config> = {
     base: '/',
     lang: 'en-US',
     title: 'Wolverine',
@@ -18,6 +18,7 @@ export default withMermaid( {
 
         nav: [
             {text: 'Guide', link: '/guide/basics'},
+            {text: 'Migration', link: '/guide/migration'},
             {text: 'Tutorials', link: '/tutorials/'},
             {
                 text: 'Discord | Join Chat',
@@ -57,7 +58,7 @@ export default withMermaid( {
             '/': [
                 {
                     text: 'Tutorials',
-                    collapsible: true,
+                    collapsed: true,
                     items: [
                         {text: 'Getting Started', link: '/tutorials/getting-started'},
                         {text: 'Wolverine as Mediator', link: '/tutorials/mediator'},
@@ -69,7 +70,6 @@ export default withMermaid( {
                 },
                 {
                     text: 'General',
-                    collapsible: true,
                     collapsed: true,
                     items: [
                         {text: 'Basic Concepts', link: '/guide/basics'},
@@ -86,7 +86,6 @@ export default withMermaid( {
                 },
                 {
                     text: 'Messages and Handlers',
-                    collapsible: true,
                     collapsed: true,
                     items: [
                         {text: 'Messages and Serialization', link: '/guide/messages'},
@@ -100,14 +99,15 @@ export default withMermaid( {
                                 {text: 'Middleware', link: '/guide/handlers/middleware'},
                                 {text: 'Multi-Tenancy', link: '/guide/handlers/multi-tenancy'},
                                 {text: 'Execution Timeouts', link: '/guide/handlers/timeout'},
-                                {text: 'Fluent Validation Middleware', link: '/guide/handlers/fluent-validation'}
+                                {text: 'Fluent Validation Middleware', link: '/guide/handlers/fluent-validation'},
+                                {text: 'Sticky Handler to Endpoint Assignments', link: '/guide/handlers/sticky'},
+                                {text: 'Message Batching', link: '/guide/handlers/batching'}
                             ]
                         },
                     ]
                 },
                 {
                     text: 'Messaging',
-                    collapsible: true,
                     collapsed: true,
                     items: [
                         {text: 'Introduction to Messaging', link: '/guide/messaging/introduction'},
@@ -116,7 +116,6 @@ export default withMermaid( {
                         {text: 'Listening Endpoints', link: '/guide/messaging/listeners'},
                         {
                             text: 'Transports',
-                            collapsible: true,
                             collapsed: true,
                             items: [
                                 {text: 'Local Queues', link: '/guide/messaging/transports/local'},
@@ -127,7 +126,8 @@ export default withMermaid( {
                                         {text: 'Conventional Routing', link:'/guide/messaging/transports/rabbitmq/conventional-routing'},
                                         {text: 'Queue, Topic, and Binding Management', link:'/guide/messaging/transports/rabbitmq/object-management'},
                                         {text: 'Topics', link:'/guide/messaging/transports/rabbitmq/topics'},
-                                        {text: 'Interoperability', link:'/guide/messaging/transports/rabbitmq/interoperability'}
+                                        {text: 'Interoperability', link:'/guide/messaging/transports/rabbitmq/interoperability'},
+                                        {text: 'Connecting to Multiple Brokers', link: '/guide/messaging/transports/rabbitmq/multiple-brokers'}
                                     ]},
                                 {text: 'Azure Service Bus', link: '/guide/messaging/transports/azureservicebus/', items:[
                                         {text: 'Publishing', link:'/guide/messaging/transports/azureservicebus/publishing'},
@@ -149,6 +149,13 @@ export default withMermaid( {
                                         {text: 'Interoperability', link:'/guide/messaging/transports/sqs/interoperability'}
                                     ]},
                                 {text: 'TCP', link: '/guide/messaging/transports/tcp'},
+                                {text: 'Google PubSub', link: '/guide/messaging/transports/gcp-pubsub/', items: [
+                                        {text: 'Publishing', link:'/guide/messaging/transports/gcp-pubsub/publishing'},
+                                        {text: 'Listening', link:'/guide/messaging/transports/gcp-pubsub/listening'},
+                                        {text: 'Dead Letter Queues', link:'/guide/messaging/transports/gcp-pubsub/deadlettering'},
+                                        {text: 'Conventional Routing', link:'/guide/messaging/transports/gcp-pubsub/conventional-routing'},
+                                        {text: 'Interoperability', link:'/guide/messaging/transports/gcp-pubsub/interoperability'}
+                                    ]},
                                 {text: 'Sql Server', link: '/guide/messaging/transports/sqlserver'},
                                 {text: 'PostgreSQL', link: '/guide/messaging/transports/postgresql'},
                                 {text: 'MQTT', link: '/guide/messaging/transports/mqtt'},
@@ -163,7 +170,6 @@ export default withMermaid( {
                 },
                 {
                     text: 'ASP.Net Core Integration',
-                    collapsible: true,
                     collapsed: true,
                     items: [
                         {text: 'Http Services with Wolverine', link: '/guide/http/'},
@@ -189,13 +195,12 @@ export default withMermaid( {
                 },
                 {
                     text: 'Durability and Persistence',
-                    collapsible: true,
                     collapsed: true,
                     items: [
                         {text: 'Durable Inbox and Outbox Messaging', link: '/guide/durability/'},
                         {text: 'Troubleshooting and Leadership Election', link: '/guide/durability/leadership-and-troubleshooting'},
                         {text: 'Sagas', link: '/guide/durability/sagas'},
-                        {text: 'Marten Integration', link: '/guide/durability/marten/', collapsible: true, collapsed: false, items: [
+                        {text: 'Marten Integration', link: '/guide/durability/marten/',  collapsed: false, items: [
                                 {text: 'Transactional Middleware', link: '/guide/durability/marten/transactional-middleware'},
                                 {text: 'Transactional Outbox Support', link: '/guide/durability/marten/outbox'},
                                 {text: 'Transactional Inbox Support', link: '/guide/durability/marten/inbox'},
@@ -203,12 +208,14 @@ export default withMermaid( {
                                 {text: 'Aggregate Handlers and Event Sourcing', link: '/guide/durability/marten/event-sourcing'},
                                 {text: 'Event Forwarding to Wolverine', link: '/guide/durability/marten/event-forwarding'},
                                 {text: 'Event Subscriptions', link: '/guide/durability/marten/subscriptions'},
+                                {text: 'Subscription/Projection Distribution', link: '/guide/durability/marten/distribution'},
                                 {text: 'Sagas', link: '/guide/durability/marten/sagas'},
                                 {text: 'Multi-Tenancy and Marten', link: '/guide/durability/marten/multi-tenancy'},
-                                {text: 'Ancillary Marten Stores', link: '/guide/durability/marten/ancillary-stores'}
+                                {text: 'Ancillary Marten Stores', link: '/guide/durability/marten/ancillary-stores'},
                             ]},
                         {text: 'Sql Server Integration', link: '/guide/durability/sqlserver'},
                         {text: 'PostgreSQL Integration', link: '/guide/durability/postgresql'},
+                        {text: 'RavenDb Integration', link: '/guide/durability/ravendb'},
                         {text: 'Entity Framework Core Integration', link: '/guide/durability/efcore'},
                         {text: 'Managing Message Storage', link: '/guide/durability/managing'},
                         {text: 'Dead Letter Storage', link: '/guide/durability/dead-letter-storage'},
@@ -223,7 +230,9 @@ export default withMermaid( {
         linkify: false
     },
     ignoreDeadLinks: true
-});
+}
+
+export default withMermaid(config);
 
 
 

@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using JasperFx.Core;
 using Microsoft.Extensions.ObjectPool;
+using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Runtime.Handlers;
@@ -17,6 +18,7 @@ public class HandlerPipeline : IHandlerPipeline
     private readonly HandlerGraph _graph;
 
     private readonly WolverineRuntime _runtime;
+    private readonly Endpoint _endpoint;
 
     internal HandlerPipeline(WolverineRuntime runtime, IExecutorFactory executorFactory)
     {
@@ -29,6 +31,20 @@ public class HandlerPipeline : IHandlerPipeline
         Logger = runtime.MessageTracking;
 
         _executors = new LightweightCache<Type, IExecutor>(executorFactory.BuildFor);
+    }
+    
+    internal HandlerPipeline(WolverineRuntime runtime, IExecutorFactory executorFactory, Endpoint endpoint)
+    {
+        _graph = runtime.Handlers;
+        _runtime = runtime;
+        _endpoint = endpoint;
+        ExecutorFactory = executorFactory;
+        _contextPool = runtime.ExecutionPool;
+        _cancellation = runtime.Cancellation;
+
+        Logger = runtime.MessageTracking;
+
+        _executors = new LightweightCache<Type, IExecutor>(type => executorFactory.BuildFor(type, endpoint));
     }
 
     internal IExecutorFactory ExecutorFactory { get; }
@@ -86,7 +102,7 @@ public class HandlerPipeline : IHandlerPipeline
         }
     }
 
-    private bool tryDeserializeEnvelope(Envelope envelope, out IContinuation continuation)
+    public bool TryDeserializeEnvelope(Envelope envelope, out IContinuation continuation)
     {
         // Try to deserialize
         try
@@ -146,7 +162,7 @@ public class HandlerPipeline : IHandlerPipeline
 
         if (envelope.Message == null)
         {
-            if (!tryDeserializeEnvelope(envelope, out var serializationError))
+            if (!TryDeserializeEnvelope(envelope, out var serializationError))
             {
                 activity?.SetStatus(ActivityStatusCode.Error, "Serialization Failure");
                 return Task.FromResult(serializationError);

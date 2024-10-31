@@ -6,13 +6,14 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Shouldly;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Weasel.Postgresql;
 using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.Marten;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
+using Wolverine.Util;
 
 namespace MartenTests.Persistence;
 
@@ -78,6 +79,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
                     {
                         m.Connection(Servers.PostgresConnectionString);
                         m.DatabaseSchemaName = ReceiverSchemaName;
+                        m.DisableNpgsqlLogging = true;
                     }).IntegrateWithWolverine();
 
                     opts.ListenForMessagesFrom(_listener).UseDurableInbox();
@@ -100,6 +102,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
                     {
                         m.Connection(Servers.PostgresConnectionString);
                         m.DatabaseSchemaName = SenderSchemaName;
+                        m.DisableNpgsqlLogging = true;
                     }).IntegrateWithWolverine();
 
                     opts.Durability.ScheduledJobPollingTime = 1.Seconds();
@@ -158,7 +161,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
         for (var i = 0; i < count; i++)
         {
             var msg = new TraceMessage { Name = Guid.NewGuid().ToString() };
-            await runtime.Services.GetRequiredService<IMessageContext>().SendAsync(msg);
+            await runtime.MessageBus().SendAsync(msg);
         }
     }
 

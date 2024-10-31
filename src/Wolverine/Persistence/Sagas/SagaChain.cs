@@ -4,7 +4,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Lamar;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Persistence.Sagas;
@@ -23,7 +23,7 @@ public class SagaChain : HandlerChain
     public const string SagaIdVariableName = "sagaId";
     public static readonly Type[] ValidSagaIdTypes = [typeof(Guid), typeof(int), typeof(long), typeof(string)];
 
-    public SagaChain(IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : base(grouping, parent)
+    public SagaChain(WolverineOptions options, IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : base(options, grouping, parent)
     {
         try
         {
@@ -53,7 +53,7 @@ public class SagaChain : HandlerChain
 
     public MethodCall[] NotFoundCalls { get; set; } = [];
 
-    internal static MemberInfo? DetermineSagaIdMember(Type messageType, Type sagaType)
+    public static MemberInfo? DetermineSagaIdMember(Type messageType, Type sagaType)
     {
         var expectedSagaIdName = $"{sagaType.Name}Id";
 
@@ -69,12 +69,14 @@ public class SagaChain : HandlerChain
         return Handlers.Where(x => methodNames.Contains(x.Method.Name) && x.HandlerType.CanBeCastTo<Saga>()).ToArray();
     }
 
-    internal override List<Frame> DetermineFrames(GenerationRules rules, IContainer container,
+    internal override List<Frame> DetermineFrames(GenerationRules rules, IServiceContainer container,
         MessageVariable messageVariable)
     {
         applyCustomizations(rules, container);
 
         var frameProvider = rules.GetPersistenceProviders(this, container);
+        
+        frameProvider.ApplyTransactionSupport(this, container);
 
         NotFoundCalls = findByNames(NotFound);
         StartingCalls = findByNames(Start, Starts, StartOrHandle, StartsOrHandles);
@@ -96,10 +98,11 @@ public class SagaChain : HandlerChain
         }
 
 // .Concat(handlerReturnValueFrames)
-        return Middleware.Concat(list).Concat(Postprocessors).ToList();
+
+        return Middleware.Concat(container.TryCreateConstructorFrames(Handlers)).Concat(list).Concat(Postprocessors).ToList();
     }
 
-    private void generateCodeForMaybeExisting(IContainer container, IPersistenceFrameProvider frameProvider,
+    private void generateCodeForMaybeExisting(IServiceContainer container, IPersistenceFrameProvider frameProvider,
         List<Frame> frames)
     {
         var findSagaId = SagaIdMember == null
@@ -107,7 +110,7 @@ public class SagaChain : HandlerChain
             : new PullSagaIdFromMessageFrame(MessageType, SagaIdMember);
 
 
-        var load = frameProvider.DetermineLoadFrame(container, SagaType, findSagaId.Creates.Single());
+        var load = frameProvider.DetermineLoadFrame(container, SagaType, findSagaId.Creates.First());
 
         // Using this one frame to tie everything together
         var resolve = new ResolveSagaFrame(findSagaId, load);
@@ -123,7 +126,7 @@ public class SagaChain : HandlerChain
         frames.Add(ifNullBlock);
     }
 
-    private void generateForOnlyStartingSaga(IContainer container, IPersistenceFrameProvider frameProvider,
+    private void generateForOnlyStartingSaga(IServiceContainer container, IPersistenceFrameProvider frameProvider,
         List<Frame> frames)
     {
         var sagaVariable = StartingCalls.SelectMany(x => x.Creates).FirstOrDefault(x => x.VariableType == SagaType);
@@ -141,12 +144,18 @@ public class SagaChain : HandlerChain
                 frames.Add(frame);
         }
 
+        if (sagaVariable.ReturnAction(this).Frames().OfType<ISagaOperation>()
+            .Any(x => x.Saga == sagaVariable && x.Operation == SagaOperationType.InsertAsync))
+        {
+            return;
+        }
+        
         var ifNotCompleted = buildFrameForConditionalInsert(sagaVariable, frameProvider, container);
         frames.Add(ifNotCompleted);
     }
 
     internal IEnumerable<Frame> DetermineSagaDoesNotExistSteps(Variable sagaId, Variable saga,
-        IPersistenceFrameProvider frameProvider, IContainer container)
+        IPersistenceFrameProvider frameProvider, IServiceContainer container)
     {
         if (MessageType.CanBeCastTo<TimeoutMessage>())
         {
@@ -186,7 +195,7 @@ public class SagaChain : HandlerChain
     }
 
     private static Frame buildFrameForConditionalInsert(Variable saga, IPersistenceFrameProvider frameProvider,
-        IContainer container)
+        IServiceContainer container)
     {
         var insert = frameProvider.DetermineInsertFrame(saga, container);
         var commit = frameProvider.CommitUnitOfWorkFrame(saga, container);
@@ -194,7 +203,7 @@ public class SagaChain : HandlerChain
     }
 
     internal IEnumerable<Frame> DetermineSagaExistsSteps(Variable sagaId, Variable saga,
-        IPersistenceFrameProvider frameProvider, IContainer container)
+        IPersistenceFrameProvider frameProvider, IServiceContainer container)
     {
         foreach (var call in ExistingCalls)
         {

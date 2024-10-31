@@ -51,7 +51,7 @@ public static IEnumerable<object> Handle(
     yield return new AccountUpdated(account.Id, account.Balance);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L37-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_accounthandler_for_testing_examples' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L41-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_accounthandler_for_testing_examples' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The testing extensions can be seen in action by the following test:
@@ -94,7 +94,7 @@ public void handle_a_debit_that_makes_the_account_have_a_low_balance()
     messages.ShouldHaveNoMessageOfType<AccountOverdrawn>();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L74-L111' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handle_a_debit_that_makes_the_account_have_a_low_balance' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L78-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handle_a_debit_that_makes_the_account_have_a_low_balance' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The supported extension methods so far are in the [TestingExtensions](https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/TestingExtensions.cs) class.
@@ -153,7 +153,7 @@ public static async Task Handle(
         new DeliveryOptions { DeliverWithin = 5.Seconds() });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L119-L154' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debitaccounthandler_that_uses_imessagecontext' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L126-L161' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debitaccounthandler_that_uses_imessagecontext' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To test this handler, we can use `TestMessageContext` as a stand in to just record
@@ -284,19 +284,22 @@ name like this:
 <!-- snippet: sample_conditionally_disable_transports -->
 <a id='snippet-sample_conditionally_disable_transports'></a>
 ```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine((context, opts) =>
-    {
-        // Other configuration...
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    // Other configuration...
 
-        // IF the environment is "Testing", turn off all external transports
-        if (context.HostingEnvironment.EnvironmentName.EqualsIgnoreCase("Testing"))
-        {
-            opts.StubAllExternalTransports();
-        }
-    }).StartAsync();
+    // IF the environment is "Testing", turn off all external transports
+    if (builder.Environment.IsDevelopment())
+    {
+        opts.StubAllExternalTransports();
+    }
+});
+
+using var host = builder.Build();
+await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L17-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conditionally_disable_transports' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L18-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conditionally_disable_transports' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 I'm not necessarily comfortable with a lot of conditional hosting setup all the time,
@@ -406,7 +409,7 @@ public async Task using_tracked_sessions()
     overdrawn.AccountId.ShouldBe(debitAccount.AccountId);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L116-L132' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_tracked_session' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L120-L136' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_tracked_session' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The tracked session mechanism utilizes Wolverine's internal instrumentation to "know" when all the outstanding
@@ -418,6 +421,11 @@ that is tracked.
 
 Note that you'll probably *mostly* *invoke* messages in these tests, but there are additional extension
 methods on `IHost` for other `IMessageBus` operations.
+
+:::info
+The Tracked Session includes only messages sent, published, or scheduled during the tracked session.
+Messages sent before the tracked session are not included in the tracked session.
+:::
 
 Finally, there are some more advanced options in tracked sessions you may find useful as 
 shown below:
@@ -464,12 +472,185 @@ public async Task using_tracked_sessions_advanced(IHost otherWolverineSystem)
     overdrawn.AccountId.ShouldBe(debitAccount.AccountId);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L134-L175' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advanced_tracked_session_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L138-L179' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advanced_tracked_session_usage' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The samples shown above inlcude `Sent` message records, but there are more properties available in the `TrackedSession` object.
+In accordance with the `MessageEventType` enum, you can access these properties on the `TrackedSession` object:
+
+<!-- snippet: sample_record_collections -->
+<a id='snippet-sample_record_collections'></a>
+```cs
+public enum MessageEventType
+{
+    Received,
+    Sent,
+    ExecutionStarted,
+    ExecutionFinished,
+    MessageSucceeded,
+    MessageFailed,
+    NoHandlers,
+    NoRoutes,
+    MovedToErrorQueue,
+    Requeued
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Tracking/MessageEventType.cs#L3-L17' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_record_collections' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Let's consider we're testing a Wolverine application which publishes a message, when a change to a watched folder is detected. The part we want to test is that a message is actually published when a file is added to the watched folder. We can use the `TrackActivity` method to start a tracked session and then use the `ExecuteAndWaitAsync` method to wait for the message to be published when the file change has happened.
 
 <!-- snippet: sample_send_message_on_file_change -->
+<a id='snippet-sample_send_message_on_file_change'></a>
+```cs
+public record FileAdded(string FileName);
+
+public class FileAddedHandler
+{
+    public Task Handle(
+        FileAdded message
+    ) =>
+        Task.CompletedTask;
+}
+
+public class RandomFileChange
+{
+    private readonly IMessageBus _messageBus;
+
+    public RandomFileChange(
+        IMessageBus messageBus
+    ) => _messageBus = messageBus;
+
+    public async Task SimulateRandomFileChange()
+    {
+        // Delay task with a random number of milliseconds
+        // Here would be your FileSystemWatcher / IFileProvider
+        await Task.Delay(
+            TimeSpan.FromMilliseconds(
+                new Random().Next(100, 1000)
+            )
+        );
+        var randomFileName = Path.GetRandomFileName();
+        await _messageBus.SendAsync(new FileAdded(randomFileName));
+    }
+}
+
+public class When_message_is_sent : IAsyncLifetime
+{
+    private IHost _host;
+
+    public async Task InitializeAsync()
+    {
+        var hostBuilder = Host.CreateDefaultBuilder();
+        hostBuilder.ConfigureServices(
+            services => { services.AddSingleton<RandomFileChange>(); }
+        );
+        hostBuilder.UseWolverine();
+
+        _host = await hostBuilder.StartAsync();
+    }
+
+    [Fact]
+    public async Task should_be_in_session()
+    {
+        var randomFileChange = _host.Services.GetRequiredService<RandomFileChange>();
+
+        var session = await _host
+            .TrackActivity()
+            .Timeout(2.Seconds())
+            .ExecuteAndWaitAsync(
+                (Func<IMessageContext, Task>)(
+                    async (
+                        _
+                    ) => await randomFileChange.SimulateRandomFileChange()
+                )
+            );
+
+        session
+            .Sent
+            .AllMessages()
+            .Count()
+            .ShouldBe(1);
+        
+        session
+            .Sent
+            .AllMessages()
+            .First()
+            .ShouldBeOfType<FileAdded>();
+    }
+
+    public async Task DisposeAsync() => await _host.StopAsync();
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L203-L282' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_on_file_change' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As you can see, we just have to start our application, attach a tracked session to it, and then wait for the message to be published. This way, we can test the whole process of the application, from the file change to the message publication, in a single test.
+
+## Running Wolverine in "Solo" Mode <Badge type="tip" text="3.0" />
+
+Wolverine's [leadership election](/guide/durability/leadership-and-troubleshooting.html#troubleshooting-and-leadership-election) process is necessary for distributing several background tasks in real life production,
+but that subsystem can lead to some inconvenient sluggishness in [cold start times](https://dontpaniclabs.com/blog/post/2022/09/20/net-cold-starts/#:~:text=In%20software%20development%2C%20cold%20starts,have%20an%20increased%20start%20time.) in automation testing.
+
+To sidestep that problem, you can direct Wolverine to run in "Solo" mode where the current process assumes that it's the 
+only running node and automatically starts up all known background tasks immediately. 
+
+To do so, you could do something like this in your main `Program` file:
+
+<!-- snippet: sample_configuring_the_solo_mode -->
+<a id='snippet-sample_configuring_the_solo_mode'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+
+builder.UseWolverine(opts =>
+{
+    opts.Services.AddMarten("some connection string")
+
+        // This adds quite a bit of middleware for
+        // Marten
+        .IntegrateWithWolverine();
+
+    // You want this maybe!
+    opts.Policies.AutoApplyTransactions();
+
+    if (builder.Environment.IsDevelopment())
+    {
+        // But wait! Optimize Wolverine for usage as
+        // if there would never be more than one node running
+        opts.Durability.Mode = DurabilityMode.Solo;
+    }
+});
+
+using var host = builder.Build();
+await host.StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L63-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_solo_mode' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Or if you're using something like [WebHostFactory](https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests?view=aspnetcore-8.0) to 
+bootstrap your Wolverine application in an integration testing harness, you can use this helper to override Wolverine into being
+"Solo":
+
+<!-- snippet: sample_using_run_wolverine_in_solo_mode_with_extension -->
+<a id='snippet-sample_using_run_wolverine_in_solo_mode_with_extension'></a>
+```cs
+// This is bootstrapping the actual application using
+// its implied Program.Main() set up
+// For non-Alba users, this is using IWebHostBuilder 
+Host = await AlbaHost.For<Program>(x =>
+{
+    x.ConfigureServices(services =>
+    {
+        // Override the Wolverine configuration in the application
+        // to run the application in "solo" mode for faster
+        // testing cold starts
+        services.RunWolverineInSoloMode();
+
+        // And just for completion, disable all Wolverine external 
+        // messaging transports
+        services.DisableAllExternalWolverineTransports();
+    });
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/IntegrationContext.cs#L27-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_run_wolverine_in_solo_mode_with_extension' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->

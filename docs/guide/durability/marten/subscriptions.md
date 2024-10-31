@@ -184,7 +184,7 @@ In the case of exceptions from processing the event with Wolverine:
 2. If the retries are exhausted, and the Marten setting for `StoreOptions.Projections.Errors.SkipApplyErrors` is `true`,
    Wolverine will persist the event to its PostgreSQL backed dead letter queue and proceed to the next event. This setting
    is the default with Marten when the daemon is running continuously in the background, but `false` in rebuilds or replays
-3. If the retries are exchausted, and `SkipApplyErrors = false`, Wolverine will still 
+3. If the retries are exhausted, and `SkipApplyErrors = false`, Wolverine will direct Marten to pause the subscription. See the [Marten asynchronous daemon error handling](https://martendb.io/events/projections/async-daemon.html#error-handling) for more information.
 
 
 ## Custom Subscriptions
@@ -343,4 +343,4 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MartenSubscriptionSamples.cs#L140-L171' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_a_batched_subscription_with_services' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-See the [Marten documentation on subscriptions](/guide/durability/marten/subscriptions.html#using-ioc-services-in-subscriptions) for more information about the lifecycle and mechanics. 
+See the [Marten documentation on subscriptions](/guide/durability/marten/subscriptions.html#using-ioc-services-in-subscriptions) for more information about the lifecycle and mechanics.

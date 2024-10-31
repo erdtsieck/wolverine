@@ -1,5 +1,5 @@
 using JasperFx.Core;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;
@@ -40,5 +40,4 @@ public class InlineRabbitMqTransportFixture : TransportComplianceFixture, IAsync
     }
 }
 
-[Collection("acceptance")]
 public class InlineRabbitMqTransportComplianceTests : TransportCompliance<InlineRabbitMqTransportFixture>;

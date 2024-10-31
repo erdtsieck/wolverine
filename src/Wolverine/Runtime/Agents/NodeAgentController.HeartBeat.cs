@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace Wolverine.Runtime.Agents;
 
 public record CheckAgentHealth : IAgentCommand, ISerializable
@@ -18,33 +20,21 @@ public record CheckAgentHealth : IAgentCommand, ISerializable
     }
 }
 
-/* Notes
- DistributeEvenly should abort quickly if every node has either the ceiling or floor number
- No local messages should ever go through the transport
- Verify vs evaluate
- - If no dynamic, no nodes changed, do a verify
- 
- 
- 
- 
- */
-
 public partial class NodeAgentController
 {
+    public bool IsLeader { get; private set; }
+
     public async Task<AgentCommands> DoHealthChecksAsync()
     {
         if (_cancellation.IsCancellationRequested)
         {
             return AgentCommands.Empty;
         }
-
-        if (_tracker.Self == null)
-        {
-            return AgentCommands.Empty;
-        }
+        
+        using var activity = WolverineTracing.ActivitySource.StartActivity("wolverine_node_assignments");
 
         // write health check regardless
-        await _persistence.MarkHealthCheckAsync(_tracker.Self.Id);
+        await _persistence.MarkHealthCheckAsync(_runtime.Options.UniqueNodeId);
 
         var nodes = await _persistence.LoadAllNodesAsync(_cancellation.Token);
 
@@ -56,51 +46,62 @@ public partial class NodeAgentController
         // Do it no matter what
         await ejectStaleNodes(staleNodes);
 
-        if (_tracker.Self.IsLeader())
+        if (_persistence.HasLeadershipLock())
         {
-            // TODO -- do the verification here too!
+            IsLeader = true;
             return await EvaluateAssignmentsAsync(nodes);
         }
 
-        return await tryElectNewLeaderIfNecessary(staleNodes);
-    }
-
-    private async Task<AgentCommands> tryElectNewLeaderIfNecessary(IReadOnlyList<WolverineNode> staleNodes)
-    {
-        // Clean out the dormant nodes first!!!
-        await ejectStaleNodes(staleNodes);
-
-        // If there is no known leader, try to elect a newer one
-        if (_tracker.Leader == null)
+        try
         {
-            var candidate = _tracker.OtherNodes().MinBy(x => x.AssignedNodeId);
-
-            if (candidate == null || candidate.AssignedNodeId > _tracker.Self.AssignedNodeId)
+            if (await _persistence.TryAttainLeadershipLockAsync(_cancellation.Token))
             {
-                // Try to take leadership in this node
-                return [new TryAssumeLeadership()];
+                return await tryStartLeadershipAsync(nodes);
             }
-
-            // Ask another, older node to take leadership
-            return [new TryAssumeLeadership(){CandidateId = candidate.Id}];
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error trying to attain a leadership lock");
         }
 
         return AgentCommands.Empty;
+    }
+
+    private async Task<AgentCommands> tryStartLeadershipAsync(IReadOnlyList<WolverineNode> nodes)
+    {
+        try
+        {
+            // If this fails, release the leadership lock!
+            await _persistence.AddAssignmentAsync(_runtime.Options.UniqueNodeId, LeaderUri,
+                _cancellation.Token);
+        }
+        catch (Exception)
+        {
+            await _persistence.ReleaseLeadershipLockAsync();
+            throw;
+        }
+
+        IsLeader = true;
+
+        _logger.LogInformation("Node {NodeNumber} successfully assumed leadership", _runtime.Options.UniqueNodeId);
+        await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options,
+            NodeRecordType.LeadershipAssumed, LeaderUri));
+
+        return await EvaluateAssignmentsAsync(nodes);
     }
 
     private async Task ejectStaleNodes(IReadOnlyList<WolverineNode> staleNodes)
     {
         foreach (var staleNode in staleNodes)
         {
-            await _persistence.DeleteAsync(staleNode.Id);
-            _tracker.Remove(staleNode);
+            await _persistence.DeleteAsync(staleNode.NodeId, staleNode.AssignedNodeNumber);
         }
 
         if (staleNodes.Any())
         {
             var records = staleNodes.Select(x => new NodeRecord
             {
-                NodeNumber = x.AssignedNodeId,
+                NodeNumber = x.AssignedNodeNumber,
                 RecordType = NodeRecordType.DormantNodeEjected,
                 Description = "Health check on Node " + _runtime.Options.Durability.AssignedNodeNumber
             }).ToArray();

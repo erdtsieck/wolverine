@@ -1,7 +1,6 @@
 using System.Diagnostics.Metrics;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
@@ -17,7 +16,7 @@ namespace Wolverine.Runtime;
 
 public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 {
-    private readonly IContainer _container;
+    private readonly IServiceContainer _container;
     private readonly EndpointCollection _endpoints;
     private readonly LightweightCache<Type, IMessageInvoker> _invokers;
 
@@ -32,7 +31,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
     private readonly Lazy<IReadOnlyList<IAncillaryMessageStore>> _ancillaryStores;
 
     public WolverineRuntime(WolverineOptions options,
-        IContainer container,
+        IServiceContainer container,
         ILoggerFactory loggers)
     {
         DurabilitySettings = options.Durability;
@@ -92,6 +91,8 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
             new Lazy<IReadOnlyList<IAncillaryMessageStore>>(() => _container.GetAllInstances<IAncillaryMessageStore>());
     }
 
+    public IServiceProvider Services => _container.Services;
+
     public IReadOnlyList<IAncillaryMessageStore> AncillaryStores => _ancillaryStores.Value;
 
     public ObjectPool<MessageContext> ExecutionPool { get; }
@@ -103,6 +104,31 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
     public IMessageInvoker FindInvoker(Type messageType)
     {
         return _invokers[messageType];
+    }
+
+    public IMessageInvoker FindInvoker(string envelopeMessageType)
+    {
+        if (Handlers.TryFindMessageType(envelopeMessageType, out var messageType))
+        {
+            return FindInvoker(messageType);
+        }
+
+        return new NulloMessageInvoker();
+    }
+    
+    internal class NulloMessageInvoker : IMessageInvoker
+    {
+        public Task<T> InvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null,
+            string? tenantId = null)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null,
+            string? tenantId = null)
+        {
+            return Task.CompletedTask;
+        }
     }
 
     public void AssertHasStarted()

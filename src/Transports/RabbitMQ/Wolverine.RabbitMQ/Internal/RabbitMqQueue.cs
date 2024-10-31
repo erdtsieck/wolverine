@@ -8,7 +8,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.RabbitMQ.Internal;
 
-public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
+public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
 {
     private readonly RabbitMqTransport _parent;
 
@@ -17,7 +17,7 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
     private ushort? _preFetchCount;
 
     internal RabbitMqQueue(string queueName, RabbitMqTransport parent, EndpointRole role = EndpointRole.Application) :
-        base(new Uri($"{RabbitMqTransport.ProtocolName}://{QueueSegment}/{queueName}"), role, parent)
+        base(new Uri($"{parent.Protocol}://{QueueSegment}/{queueName}"), role, parent)
     {
         _parent = parent;
         QueueName = EndpointName = queueName;
@@ -60,87 +60,89 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
     /// </summary>
     public DeadLetterQueue? DeadLetterQueue { get; set; }
 
-    public override ValueTask<bool> CheckAsync()
+    public override async ValueTask<bool> CheckAsync()
     {
         if (isSystemQueue())
         {
-            return ValueTask.FromResult(true);
+            return true;
         }
 
         try
         {
-            using var channel = _parent.ListeningConnection.CreateModel();
-            channel.QueueDeclarePassive(QueueName);
-            return ValueTask.FromResult(true);
+            using var channel = await _parent.CreateAdminChannelAsync();
+            await channel.QueueDeclarePassiveAsync(QueueName);
+            return true;
         }
         catch (Exception)
         {
-            return ValueTask.FromResult(false);
+            return false;
         }
     }
 
-    public override ValueTask TeardownAsync(ILogger logger)
+    public override async ValueTask TeardownAsync(ILogger logger)
     {
         // This is a reply uri owned by another node, so get out of here
         if (isSystemQueue() || AutoDelete)
         {
-            return ValueTask.CompletedTask;
+            return;
         }
 
-        using var channel = _parent.ListeningConnection.CreateModel();
-        channel.QueueDeleteNoWait(QueueName);
-
-        return ValueTask.CompletedTask;
+        using var channel = await _parent.CreateAdminChannelAsync();
+        foreach (var binding in _bindings)
+        {
+            logger.LogInformation("Removing binding {Key} from exchange {Exchange} to queue {Queue}",
+                binding.BindingKey, binding.ExchangeName, binding.Queue);
+            await binding.TeardownAsync(channel);
+        }
+        await channel.QueueDeleteAsync(QueueName, false, false, true);
     }
 
-    public override ValueTask SetupAsync(ILogger logger)
+    public override async ValueTask SetupAsync(ILogger logger)
     {
         if (isSystemQueue())
         {
-            return ValueTask.CompletedTask;
+            return;
         }
 
-        using var channel = _parent.ListeningConnection.CreateModel();
-        Declare(channel, logger);
-
-        return ValueTask.CompletedTask;
+        using var channel = await _parent.CreateAdminChannelAsync();
+        await DeclareAsync(channel, logger);
     }
 
-    public ValueTask PurgeAsync(ILogger logger)
+    public async ValueTask PurgeAsync(ILogger logger)
     {
         if (isSystemQueue())
         {
-            return ValueTask.CompletedTask;
+            return;
         }
 
-        using var channel = _parent.ListeningConnection.CreateModel();
+        using var channel = await _parent.CreateAdminChannelAsync();
         try
         {
-            channel.QueuePurge(QueueName);
+            await channel.QueuePurgeAsync(QueueName);
         }
         catch (Exception e)
         {
             if (e.Message.Contains("NOT_FOUND - no queue"))
             {
-                return ValueTask.CompletedTask;
+                return;
             }
 
             throw;
         }
 
-        return ValueTask.CompletedTask;
+        return;
     }
 
-    public ValueTask<Dictionary<string, string>> GetAttributesAsync()
+    public async ValueTask<Dictionary<string, string>> GetAttributesAsync()
     {
-        using var channel = _parent.ListeningConnection.CreateModel();
+        using var channel = await _parent.CreateAdminChannelAsync();
 
-        var result = channel.QueueDeclarePassive(QueueName);
+        var result = await channel.QueueDeclarePassiveAsync(QueueName);
 
         var dict = new Dictionary<string, string>
             { { "name", QueueName }, { "count", result.MessageCount.ToString() } };
 
-        return ValueTask.FromResult(dict);
+        return dict;
     }
 
     public string QueueName { get; }
@@ -186,26 +188,26 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
     ///     Mostly for testing
     /// </summary>
     /// <returns></returns>
-    public long QueuedCount()
+    public async Task<long> QueuedCountAsync()
     {
-        using var channel = _parent.ListeningConnection.CreateModel();
+        using var channel = await _parent.CreateAdminChannelAsync();
 
-        var result = channel.QueueDeclarePassive(QueueName);
+        var result = await channel.QueueDeclarePassiveAsync(QueueName);
         return result.MessageCount;
     }
 
-    public override ValueTask InitializeAsync(ILogger logger)
+    public override async ValueTask InitializeAsync(ILogger logger)
     {
         if (_initialized)
         {
-            return ValueTask.CompletedTask;
+            return;
         }
 
         try
         {
-            var connection = _parent.ListeningConnection;
+            using var channel = await _parent.CreateAdminChannelAsync();
 
-            return InitializeAsync(connection, logger);
+            await InitializeAsync(channel, logger);
         }
         finally
         {
@@ -213,34 +215,33 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
         }
     }
 
-    internal ValueTask InitializeAsync(IConnectionMonitor connection, ILogger logger)
+    internal async ValueTask InitializeAsync(IChannel channel, ILogger logger)
     {
         // This is a reply uri owned by another node, so get out of here
         if (isSystemQueue())
         {
-            return ValueTask.CompletedTask;
+            return;
         }
 
         if (_parent.AutoProvision || _parent.AutoPurgeAllQueues || PurgeOnStartup)
         {
-            using var channel = connection.CreateModel();
             if (_parent.AutoProvision)
             {
-                Declare(channel, logger);
+                await DeclareAsync(channel, logger);
             }
 
             if (!IsDurable || IsExclusive || AutoDelete)
             {
-                return ValueTask.CompletedTask;
+                return;
             }
 
             if (PurgeOnStartup || _parent.AutoPurgeAllQueues)
             {
-                channel.QueuePurge(QueueName);
+                await channel.QueuePurgeAsync(QueueName);
             }
         }
 
-        return ValueTask.CompletedTask;
+        return;
     }
 
     private bool isSystemQueue()
@@ -253,7 +254,7 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
         return QueueName;
     }
 
-    internal void Declare(IModel channel, ILogger logger)
+    internal async Task DeclareAsync(IChannel channel, ILogger logger)
     {
         if (HasDeclared)
         {
@@ -271,10 +272,18 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
 
         try
         {
-            channel.QueueDeclare(QueueName, IsDurable, IsExclusive, AutoDelete, Arguments);
+            await channel.QueueDeclareAsync(QueueName, IsDurable, IsExclusive, AutoDelete, Arguments);
             logger.LogInformation(
                 "Declared Rabbit MQ queue '{Name}' as IsDurable={IsDurable}, IsExclusive={IsExclusive}, AutoDelete={AutoDelete}",
                 EndpointName, IsDurable, IsExclusive, AutoDelete);
+            
+            if (_bindings.Count > 0)
+            {
+                foreach (var binding in _bindings)
+                {
+                    await binding.DeclareAsync(channel, logger);
+                }
+            }
         }
         catch (OperationInterruptedException e)
         {
@@ -324,13 +333,16 @@ public class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
             for (var i = 0; i < ListenerCount; i++)
             {
                 var listener = new RabbitMqListener(runtime, this, _parent, receiver);
+                await listener.CreateAsync();
                 listeners.Add(listener);
             }
 
             return new ParallelListener(Uri, listeners);
         }
 
-        return new RabbitMqListener(runtime, this, _parent, receiver);
+        var singleListener = new RabbitMqListener(runtime, this, _parent, receiver);
+        await singleListener.CreateAsync();
+        return singleListener;
     }
 
     public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)

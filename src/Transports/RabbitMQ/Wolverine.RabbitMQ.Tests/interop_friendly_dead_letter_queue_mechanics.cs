@@ -10,7 +10,7 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;
 
-public class interop_friendly_dead_letter_queue_mechanics: RabbitMQContext, IDisposable
+public class interop_friendly_dead_letter_queue_mechanics: IDisposable
 {
     private readonly string QueueName = Guid.NewGuid().ToString();
     private IHost _host;
@@ -62,7 +62,7 @@ public class interop_friendly_dead_letter_queue_mechanics: RabbitMQContext, IDis
         theTransport.Exchanges.Contains(deadLetterQueueName).ShouldBeTrue();
         theTransport.Queues.Contains(deadLetterQueueName).ShouldBeTrue();
 
-        var exchange = theTransport.Exchanges[deadLetterQueueName];
+        var exchange = theTransport.Queues[deadLetterQueueName];
         exchange.Bindings().Single().Queue.ShouldBeSameAs(theTransport.Queues[deadLetterQueueName]);
     }
 
@@ -87,12 +87,12 @@ public class interop_friendly_dead_letter_queue_mechanics: RabbitMQContext, IDis
         var initialQueue = theTransport.Queues[QueueName];
         var deadLetterQueue = theTransport.Queues[deadLetterQueueName];
 
-        initialQueue.QueuedCount().ShouldBe(0);
+        (await initialQueue.QueuedCountAsync()).ShouldBe(0);
 
         var attempts = 0;
         while (attempts < 5)
         {
-            var queuedCount = deadLetterQueue.QueuedCount();
+            var queuedCount = await deadLetterQueue.QueuedCountAsync();
             if (queuedCount > 0) return;
 
             attempts++;

@@ -14,9 +14,10 @@ namespace Internal.Generated.WolverineHandlers
             _outboxedSessionFactory = outboxedSessionFactory;
         }
 
+
+
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
-            var letterAggregateHandler = new MartenTests.LetterAggregateHandler();
             // The actual message body
             var incrementD = (MartenTests.IncrementD)context.Envelope.Message;
 
@@ -26,15 +27,18 @@ namespace Internal.Generated.WolverineHandlers
             // Loading Marten aggregate
             var eventStream = await eventStore.FetchForWriting<MartenTests.LetterAggregate>(incrementD.LetterAggregateId, cancellation).ConfigureAwait(false);
 
+            var letterAggregateHandler = new MartenTests.LetterAggregateHandler();
             
             // The actual message execution
             await letterAggregateHandler.Handle(incrementD, eventStream).ConfigureAwait(false);
 
             await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
         }
+
     }
 
     // END: IncrementDHandler1876978025
     
     
 }
+

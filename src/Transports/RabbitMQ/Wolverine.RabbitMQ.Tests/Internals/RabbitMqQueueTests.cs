@@ -11,15 +11,9 @@ namespace Wolverine.RabbitMQ.Tests.Internals;
 
 public class RabbitMqQueueTests
 {
-    private readonly IModel theChannel = Substitute.For<IModel>();
-    private readonly IConnectionMonitor theConnection = Substitute.For<IConnectionMonitor>();
+    private readonly IChannel theChannel = Substitute.For<IChannel>();
 
     private readonly RabbitMqTransport theTransport = new();
-
-    public RabbitMqQueueTests()
-    {
-        theConnection.CreateModel().Returns(theChannel);
-    }
 
     [Fact]
     public void defaults()
@@ -33,6 +27,15 @@ public class RabbitMqQueueTests
         queue.Arguments.Any().ShouldBeFalse();
     }
 
+    [Fact]
+    public void uri_construction_from_different_broker()
+    {
+        var transport = new RabbitMqTransport("random");
+        var queue = new RabbitMqQueue("foo", transport);
+        queue.Uri.ShouldBe(new Uri("random://queue/foo"));
+
+    }
+    
     [Fact]
     public void set_time_to_live()
     {
@@ -52,7 +55,7 @@ public class RabbitMqQueueTests
     [InlineData(true, false, false)]
     [InlineData(false, true, false)]
     [InlineData(false, false, true)]
-    public void declare(bool autoDelete, bool isExclusive, bool isDurable)
+    public async Task declare(bool autoDelete, bool isExclusive, bool isDurable)
     {
         var queue = new RabbitMqQueue("foo", new RabbitMqTransport())
         {
@@ -63,11 +66,11 @@ public class RabbitMqQueueTests
 
         queue.HasDeclared.ShouldBeFalse();
 
-        var channel = Substitute.For<IModel>();
-        queue.Declare(channel, NullLogger.Instance);
+        var channel = Substitute.For<IChannel>();
+        await queue.DeclareAsync(channel, NullLogger.Instance);
 
-        channel.Received()
-            .QueueDeclare("foo", queue.IsDurable, queue.IsExclusive, queue.AutoDelete, queue.Arguments);
+        await channel.Received()
+            .QueueDeclareAsync("foo", queue.IsDurable, queue.IsExclusive, queue.AutoDelete, queue.Arguments);
 
         queue.HasDeclared.ShouldBeTrue();
     }
@@ -76,7 +79,7 @@ public class RabbitMqQueueTests
     [InlineData(true, false, false)]
     [InlineData(false, true, false)]
     [InlineData(false, false, true)]
-    public void declare_second_time(bool autoDelete, bool isExclusive, bool isDurable)
+    public async Task declare_second_time(bool autoDelete, bool isExclusive, bool isDurable)
     {
         var queue = new RabbitMqQueue("foo", new RabbitMqTransport())
         {
@@ -89,10 +92,10 @@ public class RabbitMqQueueTests
         var prop = ReflectionHelper.GetProperty<RabbitMqQueue>(x => x.HasDeclared);
         prop.SetValue(queue, true);
 
-        var channel = Substitute.For<IModel>();
-        queue.Declare(channel, NullLogger.Instance);
+        var channel = Substitute.For<IChannel>();
+        await queue.DeclareAsync(channel, NullLogger.Instance);
 
-        channel.DidNotReceiveWithAnyArgs().QueueDeclare("foo", isDurable, isExclusive, autoDelete, queue.Arguments);
+        await channel.DidNotReceiveWithAnyArgs().QueueDeclareAsync("foo", isDurable, isExclusive, autoDelete, queue.Arguments);
         queue.HasDeclared.ShouldBeTrue();
     }
 
@@ -105,10 +108,10 @@ public class RabbitMqQueueTests
 
         theTransport.Queues["foo"].PurgeOnStartup = false;
 
-        await queue.InitializeAsync(theConnection, NullLogger.Instance);
+        await queue.InitializeAsync(theChannel, NullLogger.Instance);
 
-        theChannel.DidNotReceiveWithAnyArgs().QueueDeclare("foo", true, true, true, null);
-        theChannel.DidNotReceiveWithAnyArgs().QueuePurge("foo");
+        await theChannel.DidNotReceiveWithAnyArgs().QueueDeclareAsync("foo", true, true, true, null);
+        await theChannel.DidNotReceiveWithAnyArgs().QueuePurgeAsync("foo");
     }
 
     [Fact]
@@ -120,10 +123,10 @@ public class RabbitMqQueueTests
         var endpoint = theTransport.Queues["foo"];
         endpoint.PurgeOnStartup = true;
 
-        await endpoint.InitializeAsync(theConnection, NullLogger.Instance);
+        await endpoint.InitializeAsync(theChannel, NullLogger.Instance);
 
-        theChannel.DidNotReceiveWithAnyArgs().QueueDeclare("foo", true, true, true, null);
-        theChannel.Received().QueuePurge("foo");
+        await theChannel.DidNotReceiveWithAnyArgs().QueueDeclareAsync("foo", true, true, true, null);
+        await theChannel.Received().QueuePurgeAsync("foo");
     }
 
     [Fact]
@@ -136,10 +139,10 @@ public class RabbitMqQueueTests
 
         theTransport.Queues["foo"].PurgeOnStartup = false;
 
-        await endpoint.InitializeAsync(theConnection, NullLogger.Instance);
+        await endpoint.InitializeAsync(theChannel, NullLogger.Instance);
 
-        theChannel.DidNotReceiveWithAnyArgs().QueueDeclare("foo", true, true, true, null);
-        theChannel.Received().QueuePurge("foo");
+        await theChannel.DidNotReceiveWithAnyArgs().QueueDeclareAsync("foo", true, true, true, null);
+        await theChannel.Received().QueuePurgeAsync("foo");
     }
 
     [Fact]
@@ -152,10 +155,10 @@ public class RabbitMqQueueTests
 
         theTransport.Queues["foo"].PurgeOnStartup = false;
 
-        await endpoint.InitializeAsync(theConnection, NullLogger.Instance);
+        await endpoint.InitializeAsync(theChannel, NullLogger.Instance);
 
-        theChannel.Received().QueueDeclare("foo", true, false, false, endpoint.Arguments);
-        theChannel.Received().QueuePurge("foo");
+        await theChannel.Received().QueueDeclareAsync("foo", true, false, false, endpoint.Arguments);
+        await theChannel.Received().QueuePurgeAsync("foo");
     }
 
     [Fact]
@@ -167,9 +170,9 @@ public class RabbitMqQueueTests
         var endpoint = theTransport.Queues["foo"];
         endpoint.PurgeOnStartup = true;
 
-        await endpoint.InitializeAsync(theConnection, NullLogger.Instance);
+        await endpoint.InitializeAsync(theChannel, NullLogger.Instance);
 
-        theChannel.Received().QueueDeclare("foo", true, false, false, endpoint.Arguments);
-        theChannel.Received().QueuePurge("foo");
+        await theChannel.Received().QueueDeclareAsync("foo", true, false, false, endpoint.Arguments);
+        await theChannel.Received().QueuePurgeAsync("foo");
     }
 }

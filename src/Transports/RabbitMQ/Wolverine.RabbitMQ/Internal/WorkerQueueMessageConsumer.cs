@@ -10,13 +10,13 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
     private readonly CancellationToken _cancellation;
     private readonly RabbitMqListener _listener;
     private readonly ILogger _logger;
-    private readonly IEnvelopeMapper<IBasicProperties, IBasicProperties> _mapper;
+    private readonly IRabbitMqEnvelopeMapper _mapper;
     private readonly IReceiver _workerQueue;
     private bool _latched;
 
-    public WorkerQueueMessageConsumer(IModel channel, IReceiver workerQueue, ILogger logger,
+    public WorkerQueueMessageConsumer(IChannel channel, IReceiver workerQueue, ILogger logger,
         RabbitMqListener listener,
-        IEnvelopeMapper<IBasicProperties, IBasicProperties> mapper, Uri address, CancellationToken cancellation) : base(channel)
+        IRabbitMqEnvelopeMapper mapper, Uri address, CancellationToken cancellation) : base(channel)
     {
         _workerQueue = workerQueue;
         _logger = logger;
@@ -31,13 +31,14 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
         _latched = true;
     }
 
-    public override async Task HandleBasicDeliver(string consumerTag, ulong deliveryTag, bool redelivered,
-        string exchange, string routingKey,
-        IBasicProperties properties, ReadOnlyMemory<byte> body)
+    //TODO do something with the token passed in here
+    public override async Task HandleBasicDeliverAsync(string consumerTag, ulong deliveryTag, bool redelivered, string exchange,
+        string routingKey, IReadOnlyBasicProperties properties, ReadOnlyMemory<byte> body,
+        CancellationToken cancellationToken = new())
     {
         if (_latched || _cancellation.IsCancellationRequested)
         {
-            _listener.Channel!.BasicReject(deliveryTag, true);
+            await _listener.Channel!.BasicRejectAsync(deliveryTag, true, _cancellation);
             return;
         }
 
@@ -51,14 +52,14 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
         catch (Exception e)
         {
             _logger.LogError(e, "Error trying to map an incoming RabbitMQ message {MessageId} to an Envelope", properties.MessageId);
-            Model.BasicAck(envelope.DeliveryTag, false);
+            await Channel.BasicAckAsync(envelope.DeliveryTag, false, _cancellation);
 
             return;
         }
 
         if (envelope.IsPing())
         {
-            Model.BasicAck(deliveryTag, false);
+            await Channel.BasicAckAsync(deliveryTag, false, _cancellation);
             return;
         }
 
@@ -71,7 +72,7 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
             _logger.LogError(e, "Failure to receive an incoming message with {Id}, trying to 'Nack' the message", envelope.Id);
             try
             {
-                Model.BasicNack(deliveryTag, false, true);
+                await Channel.BasicNackAsync(deliveryTag, false, true, _cancellation);
             }
             catch (Exception ex)
             {

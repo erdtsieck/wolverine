@@ -1,17 +1,25 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
 
 namespace Wolverine.RabbitMQ.Tests.ConventionalRouting;
 
+public static class ConventionalRoutingTestDefaults
+{
+    public static bool RoutingMessageOnly(Type type) => type == typeof(ConventionallyRoutedMessage);
+}
+
+
 public abstract class ConventionalRoutingContext : IDisposable
 {
     private IHost _host;
-
+    
+    internal bool DisableListenerDiscovery { get; set; }
+    
     internal IWolverineRuntime theRuntime
     {
         get
@@ -19,7 +27,14 @@ public abstract class ConventionalRoutingContext : IDisposable
             if (_host == null)
             {
                 _host = WolverineHost.For(opts =>
-                    opts.UseRabbitMq().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup());
+                {
+                    opts.UseRabbitMq().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
+
+                    if (DisableListenerDiscovery)
+                    {
+                        opts.Discovery.DisableConventionalDiscovery();
+                    }
+                });
             }
 
             return _host.Services.GetRequiredService<IWolverineRuntime>();
@@ -50,6 +65,11 @@ public abstract class ConventionalRoutingContext : IDisposable
     {
         _host = WolverineHost.For(opts =>
         {
+            if (DisableListenerDiscovery)
+            {
+                opts.Discovery.DisableConventionalDiscovery();
+            }
+            
             opts.UseRabbitMq().UseConventionalRouting(configure).AutoProvision().AutoPurgeOnStartup();
         });
     }

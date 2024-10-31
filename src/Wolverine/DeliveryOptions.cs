@@ -130,6 +130,11 @@ public class DeliveryOptions
         {
             envelope.DeduplicationId = DeduplicationId;
         }
+
+        if (PartitionKey.IsNotEmpty())
+        {
+            envelope.PartitionKey = PartitionKey;
+        }
     }
 
     /// <summary>
@@ -142,6 +147,11 @@ public class DeliveryOptions
     /// MessageDeduplicationId for Amazon SQS FIFO Queue
     /// </summary>
     public string? DeduplicationId { get; set; }
+    
+    /// <summary>
+    /// Partition Key when sending via Kafka
+    /// </summary>
+    public string? PartitionKey { get; set; }
 
     /// <summary>
     ///     Add a header key/value pair to the outgoing message

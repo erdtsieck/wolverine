@@ -69,6 +69,10 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
                         Runtime.ScheduleLocalExecutionInMemory(envelope.ScheduledTime!.Value, envelope);
                     }
                 }
+                else if (ReferenceEquals(this, Transaction))
+                {
+                    await envelope.StoreAndForwardAsync();
+                }
                 else
                 {
                     await envelope.QuickSendAsync();
@@ -131,10 +135,10 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         }
     }
 
-    public Task MoveToDeadLetterQueueAsync(Exception exception)
+    public async Task MoveToDeadLetterQueueAsync(Exception exception)
     {
         // Don't bother with agent commands
-        if (Envelope?.Message is IAgentCommand) return Task.CompletedTask;
+        if (Envelope?.Message is IAgentCommand) return;
         
         if (_channel == null || Envelope == null)
         {
@@ -143,11 +147,33 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
 
         if (_channel is ISupportDeadLetterQueue c && c.NativeDeadLetterQueueEnabled)
         {
-            return c.MoveToErrorsAsync(Envelope, exception);
-        }
+            if (Envelope.Batch != null)
+            {
+                foreach (var envelope in Envelope.Batch)
+                {
+                    await c.MoveToErrorsAsync(envelope, exception);
+                }
+            }
+            else
+            {
+                await c.MoveToErrorsAsync(Envelope, exception);
+            }
 
-        // If persistable, persist
-        return Storage.Inbox.MoveToDeadLetterStorageAsync(Envelope, exception);
+            return;
+        }
+        
+        if (Envelope.Batch != null)
+        {
+            foreach (var envelope in Envelope.Batch)
+            {
+                await Storage.Inbox.MoveToDeadLetterStorageAsync(envelope, exception);
+            }
+        }
+        else
+        {
+            // If persistable, persist
+            await Storage.Inbox.MoveToDeadLetterStorageAsync(Envelope, exception);
+        }
     }
 
     public Task RetryExecutionNowAsync()
@@ -336,9 +362,15 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         }
         
         if (Envelope?.ResponseType != null && (message?.GetType() == Envelope.ResponseType ||
-                                               Envelope.ResponseType.IsAssignableFrom(message?.GetType())))
+                                               Envelope.ResponseType.IsInstanceOfType(message)))
         {
             Envelope.Response = message;
+
+            if (Runtime.Options.Durability.Mode == DurabilityMode.MediatorOnly) return;
+
+            // This was done specifically for the HTTP transport's optimized 
+            // request/reply mechanism
+            if (Envelope.DoNotCascadeResponse) return;
         }
 
         switch (message)
@@ -365,7 +397,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
                 return;
         }
 
-        if (Envelope != null && message.GetType().ToMessageTypeName() == Envelope.ReplyRequested)
+        if (Envelope?.ReplyUri != null && message.GetType().ToMessageTypeName() == Envelope.ReplyRequested)
         {
             await EndpointFor(Envelope.ReplyUri!).SendAsync(message, new DeliveryOptions { IsResponse = true });
             return;

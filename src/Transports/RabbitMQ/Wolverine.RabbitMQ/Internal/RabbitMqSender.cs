@@ -10,11 +10,11 @@ namespace Wolverine.RabbitMQ.Internal;
 internal class RabbitMqSender : RabbitMqChannelAgent, ISender
 {
     private readonly RabbitMqEndpoint _endpoint;
-    private readonly string _exchangeName;
+    private readonly CachedString _exchangeName;
     private readonly bool _isDurable;
     private readonly string _key;
     private readonly IRabbitMqEnvelopeMapper _mapper;
-    private readonly Func<Envelope, string> _toRoutingKey;
+    private readonly Func<Envelope, CachedString> _toRoutingKey;
 
     public RabbitMqSender(RabbitMqEndpoint endpoint, RabbitMqTransport transport,
         RoutingMode routingType, IWolverineRuntime runtime) : base(
@@ -24,15 +24,13 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
 
         _isDurable = endpoint.Mode == EndpointMode.Durable;
 
-        _exchangeName = endpoint.ExchangeName;
+        _exchangeName = new CachedString(endpoint.ExchangeName);
         _key = endpoint.RoutingKey();
 
-        _toRoutingKey = routingType == RoutingMode.Static ? _ => _key : TopicRouting.DetermineTopicName;
+        _toRoutingKey = routingType == RoutingMode.Static ? _ => new CachedString(_key) : x => new CachedString(TopicRouting.DetermineTopicName(x));
 
         _mapper = endpoint.BuildMapper(runtime);
         _endpoint = endpoint;
-
-        EnsureConnected();
     }
 
     public bool SupportsNativeScheduledSend => false;
@@ -40,6 +38,7 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
 
     public async ValueTask SendAsync(Envelope envelope)
     {
+        await EnsureConnected();
         if (Channel == null)
         {
             throw new InvalidOperationException("Channel has not been started for this sender");
@@ -52,39 +51,49 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
             throw new InvalidOperationException($"The RabbitMQ agent for {Destination} is disconnected");
         }
 
-        var props = Channel.CreateBasicProperties();
-        props.Persistent = _isDurable;
-        props.Headers = new Dictionary<string, object>();
+        var props = new BasicProperties
+        {
+            Persistent = _isDurable,
+            Headers = new Dictionary<string, object?>()
+        };
 
         _mapper.MapEnvelopeToOutgoing(envelope, props);
 
         var routingKey = _toRoutingKey(envelope);
-        Channel.BasicPublish(_exchangeName, routingKey, props, envelope.Data);
+        await Channel.BasicPublishAsync(_exchangeName, routingKey, false, props, envelope.Data);
     }
 
     public override string ToString()
     {
         return $"RabbitMqSender: {Destination}";
     }
-
-    public Task<bool> PingAsync()
+    
+    public async Task<bool> PingAsync()
     {
-        lock (Locker)
+        await Locker.WaitAsync();
+
+        try
         {
             if (State == AgentState.Connected)
             {
-                return Task.FromResult(true);
+                return true;
             }
 
-            startNewChannel();
+            await startNewChannel();
 
             if (Channel!.IsOpen)
             {
-                return Task.FromResult(true);
+                return true;
             }
 
-            teardownChannel();
-            return Task.FromResult(false);
+            await teardownChannel();
+            return false;
         }
+        finally
+        {
+            Locker.Release();
+        }
+      
+
     }
 }

@@ -1,4 +1,4 @@
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests;
@@ -32,5 +32,4 @@ public class TopicsComplianceFixture : TransportComplianceFixture, IAsyncLifetim
     }
 }
 
-[Collection("acceptance")]
 public class TopicAndSubscriptionSendingAndReceivingCompliance : TransportCompliance<TopicsComplianceFixture>;

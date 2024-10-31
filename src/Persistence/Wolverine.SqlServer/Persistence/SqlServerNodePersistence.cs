@@ -20,13 +20,16 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
     private readonly IMessageDatabase _database;
     private readonly DbObjectName _nodeTable;
     private readonly DbObjectName _assignmentTable;
+    private readonly int _lockId;
 
     public SqlServerNodePersistence(DatabaseSettings settings, IMessageDatabase database)
     {
         _settings = settings;
         _database = database;
-        _nodeTable = new DbObjectName(settings.SchemaName ?? "dbo", DatabaseConstants.NodeTableName);
-        _assignmentTable = new DbObjectName(settings.SchemaName ?? "dbo", DatabaseConstants.NodeAssignmentsTableName);
+        var schemaName = settings.SchemaName ?? "dbo";
+        _nodeTable = new DbObjectName(schemaName, DatabaseConstants.NodeTableName);
+        _assignmentTable = new DbObjectName(schemaName, DatabaseConstants.NodeAssignmentsTableName);
+        _lockId = schemaName.GetDeterministicHashCode();
     }
 
     public async Task ClearAllAsync(CancellationToken cancellationToken)
@@ -47,7 +50,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         var strings = node.Capabilities.Select(x => x.ToString()).Join(",");
 
         var cmd = conn.CreateCommand($"insert into {_nodeTable} (id, uri, capabilities, description) OUTPUT Inserted.node_number values (@id, @uri, @capabilities, @description) ")
-            .With("id", node.Id)
+            .With("id", node.NodeId)
             .With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString()).With("description", node.Description)
             .With("capabilities", strings);
 
@@ -58,13 +61,14 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         return (int)raw;
     }
 
-    public async Task DeleteAsync(Guid nodeId)
+    public async Task DeleteAsync(Guid nodeId, int assignedNodeNumber)
     {
         await using var conn = new SqlConnection(_settings.ConnectionString);
         await conn.OpenAsync();
 
-        await CommandExtensions.CreateCommand(conn, $"delete from {_nodeTable} where id = @id")
+        await CommandExtensions.CreateCommand(conn, $"delete from {_nodeTable} where id = @id;update {_settings.SchemaName}.{IncomingTable} set {OwnerId} = 0 where {OwnerId} = @number;update {_settings.SchemaName}.{OutgoingTable} set {OwnerId} = 0 where {OwnerId} = @number;")
             .With("id", nodeId)
+            .With("number", assignedNodeNumber)
             .ExecuteNonQueryAsync();
 
         await conn.CloseAsync();
@@ -86,7 +90,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
             nodes.Add(node);
         }
 
-        var dict = nodes.ToDictionary(x => x.Id);
+        var dict = nodes.ToDictionary(x => x.NodeId);
 
         await reader.NextResultAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -98,31 +102,6 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         }
 
         await reader.CloseAsync();
-        await conn.CloseAsync();
-
-        return nodes;
-    }
-
-    public async Task<IReadOnlyList<WolverineNode>> LoadAllStaleNodesAsync(DateTimeOffset staleTime, CancellationToken cancellationToken)
-    {
-        await using var conn = new SqlConnection(_settings.ConnectionString);
-        await conn.OpenAsync(cancellationToken);
-
-        var cmd = conn
-            .CreateCommand($"select id, uri from {_nodeTable} where health_check < @stale")
-            .With("stale", staleTime);
-        var nodes = await cmd.FetchListAsync<WolverineNode>(async reader =>
-        {
-            var id = await reader.GetFieldValueAsync<Guid>(0, cancellationToken);
-            var raw = await reader.GetFieldValueAsync<string>(1, cancellationToken);
-
-            return new WolverineNode
-            {
-                Id = id,
-                ControlUri = new Uri(raw)
-            };
-        }, cancellation: cancellationToken);
-
         await conn.CloseAsync();
 
         return nodes;
@@ -185,8 +164,8 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
     {
         var node = new WolverineNode
         {
-            Id = await reader.GetFieldValueAsync<Guid>(0),
-            AssignedNodeId = await reader.GetFieldValueAsync<int>(1),
+            NodeId = await reader.GetFieldValueAsync<Guid>(0),
+            AssignedNodeNumber = await reader.GetFieldValueAsync<int>(1),
             Description = await reader.GetFieldValueAsync<string>(2),
             ControlUri = (await reader.GetFieldValueAsync<string>(3)).ToUri(),
             Started = await reader.GetFieldValueAsync<DateTimeOffset>(4),
@@ -284,19 +263,6 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         return leader;
     }
 
-    public async Task<Uri?> FindLeaderControlUriAsync(Guid selfId)
-    {
-        await using var conn = new SqlConnection(_settings.ConnectionString);
-        await conn.OpenAsync();
-
-        var raw = await conn.CreateCommand($"select uri from {_nodeTable} inner join {_assignmentTable} on {_nodeTable}.id = {_assignmentTable}.node_id where {_assignmentTable}.id = @id").With("id", NodeAgentController.LeaderUri.ToString())
-            .ExecuteScalarAsync();
-
-        await conn.CloseAsync();
-
-        return raw == null ? null : new Uri((string)raw);
-    }
-
     private async Task<Guid?> currentLeaderAsync(SqlConnection conn)
     {
         var current = await conn
@@ -310,19 +276,6 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         }
 
         return null;
-    }
-
-    public async Task<IReadOnlyList<Uri>> LoadAllOtherNodeControlUrisAsync(Guid selfId)
-    {
-        await using var conn = new SqlConnection(_settings.ConnectionString);
-        await conn.OpenAsync();
-
-        var list = await conn.CreateCommand($"select uri from {_nodeTable} where id != @id").With("id", selfId)
-            .FetchListAsync<string>();
-
-        await conn.CloseAsync();
-
-        return list.Select(x => x!.ToUri()).ToList();
     }
 
     public async Task<IReadOnlyList<int>> LoadAllNodeAssignedIdsAsync()
@@ -374,5 +327,20 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         await conn.CloseAsync();
 
         return result;
+    }
+
+    public bool HasLeadershipLock()
+    {
+        return _database.AdvisoryLock.HasLock(_lockId);
+    }
+
+    public Task<bool> TryAttainLeadershipLockAsync(CancellationToken token)
+    {
+        return _database.AdvisoryLock.TryAttainLockAsync(_lockId, token);
+    }
+
+    public Task ReleaseLeadershipLockAsync()
+    {
+        return _database.AdvisoryLock.ReleaseLockAsync(_lockId);
     }
 }

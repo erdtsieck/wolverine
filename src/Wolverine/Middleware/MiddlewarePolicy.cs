@@ -4,9 +4,9 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Lamar;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Middleware;
@@ -19,7 +19,7 @@ public class MiddlewarePolicy : IChainPolicy
 
     private readonly List<Application> _applications = [];
 
-    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IServiceContainer container)
     {
         var applications = _applications;
 
@@ -58,9 +58,17 @@ public class MiddlewarePolicy : IChainPolicy
             chain.Middleware.Insert(i, befores[i]);
         }
 
-        var afters = applications.ToArray().Reverse().SelectMany(x => x.BuildAfterCalls(chain, rules));
-
-        chain.Postprocessors.AddRange(afters);
+        var afters = applications.ToArray().Reverse().SelectMany(x => x.BuildAfterCalls(chain, rules)).ToArray();
+        
+        if (afters.Any())
+        {
+            for (int i = 0; i < afters.Length; i++)
+            {
+                chain.Postprocessors.Insert(i, afters[i]);
+            }
+            
+            //chain.Postprocessors.AddRange(afters);
+        }
     }
 
     public Application AddType(Type middlewareType, Func<IChain, bool>? filter = null)
@@ -143,19 +151,19 @@ public class MiddlewarePolicy : IChainPolicy
             foreach (var frame in frames) yield return frame;
         }
 
-        private IEnumerable<Frame> wrapBeforeFrame(MethodCall call, GenerationRules rules)
+        private IEnumerable<Frame> wrapBeforeFrame(IChain chain, MethodCall call, GenerationRules rules)
         {
             if (_finals.Length == 0)
             {
                 yield return call;
-                if (rules.TryFindContinuationHandler(call, out var frame))
+                if (rules.TryFindContinuationHandler(chain, call, out var frame))
                 {
                     yield return frame!;
                 }
             }
             else
             {
-                if (rules.TryFindContinuationHandler(call, out var frame))
+                if (rules.TryFindContinuationHandler(chain, call, out var frame))
                 {
                     call.Next = frame;
                 }
@@ -209,7 +217,7 @@ public class MiddlewarePolicy : IChainPolicy
                 {
                     AssertMethodDoesNotHaveDuplicateReturnValues(call);
 
-                    foreach (var frame in wrapBeforeFrame(call, rules)) yield return frame;
+                    foreach (var frame in wrapBeforeFrame(chain, call, rules)) yield return frame;
                 }
             }
         }

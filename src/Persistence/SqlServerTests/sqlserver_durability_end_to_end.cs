@@ -7,13 +7,15 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Oakton.Resources;
 using Shouldly;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Weasel.Core;
 using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Sagas;
 using Wolverine.SqlServer;
 using Wolverine.SqlServer.Persistence;
+using Wolverine.Util;
 
 namespace SqlServerTests;
 
@@ -33,13 +35,13 @@ public class sqlserver_durability_end_to_end : IAsyncLifetime
         await new SqlServerMessageStore(
                 new DatabaseSettings()
                     { ConnectionString = Servers.SqlServerConnectionString, SchemaName = ReceiverSchemaName },
-                new DurabilitySettings(), new NullLogger<SqlServerMessageStore>())
+                new DurabilitySettings(), new NullLogger<SqlServerMessageStore>(), Array.Empty<SagaTableDefinition>())
             .RebuildAsync();
 
         await new SqlServerMessageStore(
 
                     new DatabaseSettings(){ ConnectionString = Servers.SqlServerConnectionString, SchemaName = SenderSchemaName },
-                new DurabilitySettings(), new NullLogger<SqlServerMessageStore>())
+                new DurabilitySettings(), new NullLogger<SqlServerMessageStore>(), Array.Empty<SagaTableDefinition>())
             .RebuildAsync();
 
         await buildTraceDocTable();
@@ -152,7 +154,7 @@ create table receiver.trace_doc
         for (var i = 0; i < count; i++)
         {
             var msg = new TraceMessage { Name = Guid.NewGuid().ToString() };
-            await runtime.Services.GetRequiredService<IMessageContext>().SendAsync(msg);
+            await runtime.MessageBus().SendAsync(msg);
         }
     }
 

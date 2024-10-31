@@ -1,5 +1,11 @@
 # Middleware
 
+::: tip
+One of the big advantages of Wolverine's middleware model as compared to almost any other .NET application framework is that middleware can be selectively applied to only certain
+message handlers or HTTP endpoints. When you craft your middleware, try to take advantage of this to avoid unnecessary runtime logic in middleware (i.e., for example, don't use Reflection or optional
+IoC service registrations to "decide" if middleware applies to the current HTTP request or message).
+:::
+
 Wolverine supports the "Russian Doll" model of middleware, similar in concept to ASP.NET Core but very different in implementation. 
 Wolverine's middleware uses runtime code generation and compilation with [JasperFx.CodeGeneration](https://github.com/jasperfx/jasperfx.codegeneration) (which is also used by [Marten](https://martendb.io)). 
 What this means is that "middleware" in Wolverine is code that is woven right into the message and route handlers. The end result is a much more efficient runtime pipeline
@@ -177,7 +183,7 @@ public static class AccountLookupMiddleware
 {
     // The message *has* to be first in the parameter list
     // Before or BeforeAsync tells Wolverine this method should be called before the actual action
-    public static async Task<(HandlerContinuation, Account?)> LoadAsync(
+    public static async Task<(HandlerContinuation, Account?, OutgoingMessages)> LoadAsync(
         IAccountCommand command,
         ILogger logger,
 
@@ -186,21 +192,93 @@ public static class AccountLookupMiddleware
 
         CancellationToken cancellation)
     {
+        var messages = new OutgoingMessages();
         var account = await session.LoadAsync<Account>(command.AccountId, cancellation);
         if (account == null)
         {
             logger.LogInformation("Unable to find an account for {AccountId}, aborting the requested operation", command.AccountId);
+
+            messages.RespondToSender(new InvalidAccount(command.AccountId));
+            return (HandlerContinuation.Stop, null, messages);
         }
 
-        return (account == null ? HandlerContinuation.Stop : HandlerContinuation.Continue, account);
+        // messages would be empty here
+        return (HandlerContinuation.Continue, account, messages);
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L76-L104' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_accountlookupmiddleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L78-L111' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_accountlookupmiddleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Notice that the middleware above uses a tuple as the return value so that it can both pass an `Account` entity to the inner handler and also
 to return the continuation directing Wolverine to continue or stop the message processing. 
+
+## Sending Messages From Middleware
+
+::: tip
+Everything shown here works for both middleware methods on external types that are applied to the message handlers,
+or to 
+:::
+
+::: warning
+This will not work for WolverineFx.Http endpoints, but at least there, you'd probably be better served through
+returning a `ProblemDetails` response or some other error response to the original caller.
+:::
+
+Wolverine *can* send outgoing messages from middleware. You can use either `IMessageBus` directly as shown below:
+
+<!-- snippet: sample_sending_messages_in_before_middleware -->
+<a id='snippet-sample_sending_messages_in_before_middleware'></a>
+```cs
+public static class MaybeBadThingHandler
+{
+    public static async Task<HandlerContinuation> ValidateAsync(MaybeBadThing thing, IMessageBus bus)
+    {
+        if (thing.Number > 10)
+        {
+            await bus.PublishAsync(new RejectYourThing(thing.Number));
+            return HandlerContinuation.Stop;
+        }
+
+        return HandlerContinuation.Continue;
+    }
+
+    public static void Handle(MaybeBadThing message)
+    {
+        Debug.WriteLine("Got " + message);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/compound_handlers.cs#L134-L155' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_messages_in_before_middleware' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Or by returning `OutgoingMessages` from a middleware method as shown below:
+
+<!-- snippet: sample_using_outgoing_messages_from_before_middleware -->
+<a id='snippet-sample_using_outgoing_messages_from_before_middleware'></a>
+```cs
+public static class MaybeBadThing2Handler
+{
+    public static (HandlerContinuation, OutgoingMessages) ValidateAsync(MaybeBadThing2 thing, IMessageBus bus)
+    {
+        if (thing.Number > 10)
+        {
+            return (HandlerContinuation.Stop, [new RejectYourThing(thing.Number)]);
+        }
+
+        return (HandlerContinuation.Continue, []);
+    }
+
+    public static void Handle(MaybeBadThing2 message)
+    {
+        Debug.WriteLine("Got " + message);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/compound_handlers.cs#L157-L177' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_outgoing_messages_from_before_middleware' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+
 
 ## Registering Middleware by Message Type
 
@@ -346,7 +424,7 @@ To attach our `StopwatchFrame` as middleware to any route or message handler, we
 ```cs
 public class StopwatchAttribute : ModifyChainAttribute
 {
-    public override void Modify(IChain chain, GenerationRules rules, IContainer container)
+    public override void Modify(IChain chain, GenerationRules rules, IServiceContainer container)
     {
         chain.Middleware.Add(new StopwatchFrame(chain));
     }
@@ -433,8 +511,8 @@ public interface IHandlerPolicy : IWolverinePolicy
     /// </summary>
     /// <param name="chains"></param>
     /// <param name="rules"></param>
-    /// <param name="container">The application's underlying Lamar Container</param>
-    void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container);
+    /// <param name="container">The application's underlying IoC Container</param>
+    void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container);
 }
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Configuration/IHandlerPolicy.cs#L36-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ihandlerpolicy' title='Start of snippet'>anchor</a></sup>
@@ -447,7 +525,7 @@ Here's a simple sample that registers middleware on each handler chain:
 ```cs
 public class WrapWithSimple : IHandlerPolicy
 {
-    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container)
     {
         foreach (var chain in chains) chain.Middleware.Add(new SimpleWrapper());
     }

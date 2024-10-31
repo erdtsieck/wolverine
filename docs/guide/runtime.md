@@ -61,6 +61,18 @@ You can, of course, happily publish messages to an external queue and consume th
 same process.
 :::
 
+Wolverine supports asynchronous messaging through both its [local, in-process queueing](/guide/messaging/transports/local) mechanism and through external
+messaging brokers like Kafka, Rabbit MQ, Azure Service Bus, or Amazon SQS. The local queueing is a valuable way to add
+background processing to a system, and can even be durably backed by a database with full-blown transactional inbox/outbox
+support to retain in process work across unexpected system shutdowns or restarts. What the local queue cannot do is share
+work across a cluster of running nodes. In other words, you will have to use external messaging brokers to achieve any
+kind of [competing consumer](https://www.enterpriseintegrationpatterns.com/patterns/messaging/CompetingConsumers.html) work sharing for better scalability. 
+
+::: info
+Wolverine listening agents all support competing consumers out of the box for work distribution across a node cluster -- unless you are purposely opting into [strictly ordered listeners](/guide/messaging/listeners.html#strictly-ordered-listeners) where only one
+node is allowed to handle messages from a given queue or subscription.
+:::
+
 The other main usage of Wolverine is to send messages from your current process to another process through some kind of external transport like a Rabbit MQ/Azure Service Bus/Amazon SQS queue and
 have Wolverine execute that message in another process (or back to the original process):
 
@@ -91,7 +103,6 @@ During the listening process, Wolverine has to:
 5. Call the inner message executor for that message type
 6. Carry out quite a bit of Open Telemetry activity tracing, report metrics, and just plain logging
 7. Evaluate any errors against the error handling policies of the application or the specific message type
-
 
 ## Endpoint Types
 
@@ -137,7 +148,7 @@ To opt into buffering, you use this syntax:
 opts.ListenToAzureServiceBusQueue("incoming")
     .BufferedInMemory(new BufferingLimits(1000, 200));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L130-L137' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_buffered_in_memory' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L139-L146' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_buffered_in_memory' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At runtime, you have a local [TPL Dataflow queue](https://learn.microsoft.com/en-us/dotnet/standard/parallel-programming/dataflow-task-parallel-library) between the Wolverine callers and the broker:
@@ -170,7 +181,7 @@ opts.ListenToAzureServiceBusQueue("incoming")
 opts.PublishAllMessages().ToAzureServiceBusQueue("outgoing")
     .UseDurableOutbox();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L189-L199' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L236-L246' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or use policies to do this in one fell swoop (which may not be what you actually want, but you could do this!):
@@ -180,7 +191,7 @@ Or use policies to do this in one fell swoop (which may not be what you actually
 ```cs
 opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L140-L144' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_all_outgoing_are_durable' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L149-L153' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_all_outgoing_are_durable' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As shown below, the `Durable` endpoint option adds an extra step to the `Buffered` behavior to add database storage of the 
@@ -208,6 +219,105 @@ that depend on adapter interfaces and copious runtime usage of IoC containers.
 
 See [Code Generation in Wolverine](/guide/codegen) for much more information about this model and how it relates to the execution pipeline.
 
+## Nodes and Agents
+
+![Nodes and Agents](/nodes-and-agents.png)
+
+Wolverine has some ability to distribute "sticky" or stateful work across running nodes in your application. To do so, 
+Wolverine tracks the running "nodes" (just means an executing instance of your Wolverine application) and elects a 
+single leader to distribute and assign "agents" to the running "nodes". Wolverine has built in health monitoring that
+can detect when any node is offline to redistribute working agents to other nodes. Wolverine is also able to "fail over" the
+leader assignment to a different node if the original leader is determined to be down. Likewise, Wolverine will redistribute
+running agent assignments when new nodes are brought online.
+
+::: info
+You will have to have some kind of durable message storage configured for your application for the leader election
+and agent assignments to function.
+:::
+
+The stateful, running "agents" are exposed through an `IAgent`
+interface like so:
+
+<!-- snippet: sample_IAgent -->
+<a id='snippet-sample_iagent'></a>
+```cs
+/// <summary>
+///     Models a constantly running background process within a Wolverine
+///     node cluster
+/// </summary>
+public interface IAgent : IHostedService
+{
+    /// <summary>
+    ///     Unique identification for this agent within the Wolverine system
+    /// </summary>
+    Uri Uri { get; }
+    
+    AgentStatus Status { get; }
+}
+
+public enum AgentStatus
+{
+    Started,
+    Stopped,
+    Paused
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L6-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+With related groups of agents built and assigned by IoC-registered implementations of this interface:
+
+<!-- snippet: sample_IAgentFamily -->
+<a id='snippet-sample_iagentfamily'></a>
+```cs
+/// <summary>
+///     Pluggable model for managing the assignment and execution of stateful, "sticky"
+///     background agents on the various nodes of a running Wolverine cluster
+/// </summary>
+public interface IAgentFamily
+{
+    /// <summary>
+    ///     Uri scheme for this family of agents
+    /// </summary>
+    string Scheme { get; }
+
+    /// <summary>
+    ///     List of all the possible agents by their identity for this family of agents
+    /// </summary>
+    /// <returns></returns>
+    ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync();
+
+    /// <summary>
+    ///     Create or resolve the agent for this family
+    /// </summary>
+    /// <param name="uri"></param>
+    /// <param name="wolverineRuntime"></param>
+    /// <returns></returns>
+    ValueTask<IAgent> BuildAgentAsync(Uri uri, IWolverineRuntime wolverineRuntime);
+
+    /// <summary>
+    ///     All supported agent uris by this node instance
+    /// </summary>
+    /// <returns></returns>
+    ValueTask<IReadOnlyList<Uri>> SupportedAgentsAsync();
+
+    /// <summary>
+    ///     Assign agents to the currently running nodes when new nodes are detected or existing
+    ///     nodes are deactivated
+    /// </summary>
+    /// <param name="assignments"></param>
+    /// <returns></returns>
+    ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgentFamily.cs#L16-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagentfamily' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Built in examples of the agent and agent family are:
+
+* Wolverine's built-in durability agent to recover orphaned messages from nodes that are detected to be offline, with one agent per tenant database
+* Wolverine uses the agent assignment for "exclusive" message listeners like the strictly ordered listener option
+* The integrated Marten projection and subscription load distribution
 
 ## IoC Container Integration
 

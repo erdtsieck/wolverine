@@ -87,6 +87,12 @@ case, Wolverine does enforce timeout conditions with a default of 5 seconds whic
 
 ## Request/Reply
 
+::: warning
+There was a breaking change in behavior for this functionality in Wolverine 3.0. The response type, the `T` in `InvokeAsync<T>()` is **not**
+sent as a cascaded message if that type is the requested response type. You will have to explicitly send the response out through `IMessageBus.PublishAsync()`
+to force that to be sent out instead of just being the response.
+:::
+
 Wolverine also has direct support for the [request/reply](https://www.enterpriseintegrationpatterns.com/RequestReply.html) pattern or really just mediating between your code and complex query handlers through
 the `IMessageBus.InvokeAsync<T>()` API. To make that concrete, let's assume you want to request the results of a mathematical operation as shown below
 in these message types and a corresponding message handler:
@@ -126,6 +132,38 @@ public async Task invoke_math_operations(IMessageBus bus)
 
 Note that this API hides whether or not this operation is a local operation running on the same thread and invoking a local message handler or sending a message through to a remote
 endpoint and waiting for the response. The same timeout mechanics and performance concerns apply to this operation as the `InvokeAsync()` method described in the previous section.
+
+Note that if you execute the `Numbers` message from above with `InvokeAsync<Results>()`, the `Results` response will only be
+returned as the response and will not be published as a message. This was a breaking change in Wolverine 3.0. We think (hope)
+that this will be less confusing.
+
+You can explicitly override this behavior on a handler by handler basis with the `[AlwaysPublishResponse]` attribute
+as shown below:
+
+<!-- snippet: sample_using_AlwaysPublishResponse -->
+<a id='snippet-sample_using_alwayspublishresponse'></a>
+```cs
+public class CreateItemCommandHandler
+{
+    // Using this attribute will force Wolverine to also publish the ItemCreated event even if
+    // this is called by IMessageBus.InvokeAsync<ItemCreated>()
+    [AlwaysPublishResponse]
+    public async Task<(ItemCreated, SecondItemCreated)> Handle(CreateItemCommand command, IDocumentSession session)
+    {
+        var item = new Item
+        {
+            Id = Guid.NewGuid(),
+            Name = command.Name
+        };
+
+        session.Store(item);
+
+        return (new ItemCreated(item.Id, item.Name), new SecondItemCreated(item.Id, item.Name));
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Bugs/Bug_305_invoke_async_with_return_not_publishing_with_tuple_return_value.cs#L39-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_alwayspublishresponse' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## Sending or Publishing Messages
 

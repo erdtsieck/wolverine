@@ -69,26 +69,13 @@ public static IMartenOp Approve([Document("number")] Invoice invoice)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L54-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_route_argument_with_document_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-You can also combine the behavior of `[Document]` and `[Required]` through a single attribute like this:
+In the code above, if the `Invoice` document does not exist, the route will stop and return a status code 404 for Not Found.  
 
-<!-- snippet: sample_using_Document_required -->
-<a id='snippet-sample_using_Document_required'></a>
-```cs
-[WolverinePost("/api/tenants/{tenant}/counters/{id}/inc2")]
-public static IMartenOp Increment2([Document(Required = true)] Counter counter)
-{
-    counter = counter with { Count = counter.Count + 1 };
-    return MartenOps.Store(counter);
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Bugs/Bug_865_returning_IResult_using_Auto_codegen.cs#L118-L127' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_Document_required' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
+If you, for whatever reason, want your handler executed even if the document does not exist, then you can set the `DocumentAttribute.Required` property to `false`.
 
-In the code above, if the `Counter` document does not exist, the route will stop and return a status code 404 for Not Found.
-
-:::warning
-It is recommended to use `[Document(Required = true)]` instead of the combination of `[Document][Required]`!  
-If the document is `NULL`, the former skip your `Load` / `Before` / etc. method, while the latter will still call it.
+:::info
+Starting with Wolverine 3 `DocumentAttribute.Required = true` is the default behavior.
+In previous versions the default value was `false`.
 :::
 
 However, if the document is soft-deleted your endpoint will still be executed.
@@ -97,7 +84,7 @@ If you want soft-deleted documents to be treated as `NULL` for a endpoint, you c
 In combination with `Required = true` that means the endpoint will return 404 for missing and soft-deleted documents.
 
 <!-- snippet: sample_using_Document_with_MaybeSoftDeleted -->
-<a id='snippet-sample_using_Document_with_MaybeSoftDeleted'></a>
+<a id='snippet-sample_using_document_with_maybesoftdeleted'></a>
 ```cs
 [WolverineGet("/invoices/soft-delete/{id}")]
 public static Invoice GetSoftDeleted([Document(Required = true, MaybeSoftDeleted = false)] Invoice invoice)
@@ -105,7 +92,7 @@ public static Invoice GetSoftDeleted([Document(Required = true, MaybeSoftDeleted
     return invoice;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L65-L71' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_Document_with_MaybeSoftDeleted' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L65-L71' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_document_with_maybesoftdeleted' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -245,7 +232,7 @@ public class Order
 To append a single event to an event stream from an HTTP endpoint, you can use a return value like so:
 
 <!-- snippet: sample_using_EmptyResponse -->
-<a id='snippet-sample_using_EmptyResponse'></a>
+<a id='snippet-sample_using_emptyresponse'></a>
 ```cs
 [AggregateHandler]
 [WolverinePost("/orders/ship"), EmptyResponse]
@@ -258,7 +245,7 @@ public static OrderShipped Ship(ShipOrder command, Order order)
     return new OrderShipped();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L106-L119' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_EmptyResponse' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L106-L119' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or potentially append multiple events using the `Events` type as a return value like this sample:
@@ -307,7 +294,7 @@ Register it in `WolverineHttpOptions` like this:
 ```cs
 opts.UseMartenCompiledQueryResultPolicy();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L165-L167' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_user_marten_compiled_query_policy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L180-L182' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_user_marten_compiled_query_policy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If you now return a compiled query from an Endpoint the result will get directly streamed to the client as JSON. Short circuiting JSON deserialization.

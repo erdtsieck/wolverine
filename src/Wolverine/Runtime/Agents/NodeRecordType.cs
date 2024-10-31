@@ -8,15 +8,15 @@ public enum NodeRecordType
     AgentStopped,
     DormantNodeEjected,
     AssignmentChanged,
-    LeadershipAssumed,
-    ElectionRequested
+    LeadershipAssumed
 }
 
 public class NodeRecord
 {
+    public string Id { get; set; } = Guid.NewGuid().ToString();
     public int NodeNumber { get; set; }
     public NodeRecordType RecordType { get; set; }
-    public DateTimeOffset Timestamp { get; set; }
+    public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
     public string Description { get; set; } = string.Empty;
 
     public static NodeRecord For(WolverineOptions options, NodeRecordType eventType)
@@ -25,16 +25,6 @@ public class NodeRecord
         {
             NodeNumber = options.Durability.AssignedNodeNumber,
             RecordType = eventType
-        };
-    }
-
-    public static NodeRecord Starting(WolverineOptions options, NodeRecordType eventType)
-    {
-        return new NodeRecord
-        {
-            NodeNumber = options.Durability.AssignedNodeNumber,
-            RecordType = eventType,
-            Description = $"UniqueNodeId: {options.UniqueNodeId}, MachineName: {Environment.MachineName}"
         };
     }
 

@@ -5,7 +5,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.RuntimeCompiler;
-using Lamar;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wolverine.Attributes;
@@ -23,7 +23,6 @@ namespace Wolverine.Runtime.Handlers;
 
 public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailurePolicies
 {
-    public static readonly string Context = "context";
     private readonly List<HandlerCall> _calls = new();
     private readonly object _compilingLock = new();
 
@@ -56,8 +55,10 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         RegisterMessageType(typeof(Acknowledgement));
         RegisterMessageType(typeof(FailureAcknowledgement));
     }
+    
+    public Dictionary<Type, Type> MappedGenericMessageTypes { get; } = new();
 
-    internal IContainer? Container { get; set; }
+    internal IServiceContainer Container { get; set; }
 
     public HandlerChain[] Chains => _chains.Enumerate().Select(x => x.Value).ToArray();
 
@@ -110,12 +111,59 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     public HandlerChain? ChainFor(Type messageType)
     {
-        return (HandlerFor(messageType) as MessageHandler)?.Chain;
+        if (_chains.TryFind(messageType, out var chain)) return chain;
+
+        return null;
     }
 
     public HandlerChain? ChainFor<T>()
     {
         return ChainFor(typeof(T));
+    }
+
+    public IMessageHandler? HandlerFor(Type messageType, Endpoint endpoint)
+    {
+        if (messageType.CanBeCastTo(typeof(IAgentCommand)))
+        {
+            if (_handlers.TryFind(typeof(IAgentCommand), out var handler))
+            {
+                _handlers = _handlers.AddOrUpdate(messageType, handler);
+                return handler;
+            }
+
+            throw new NotSupportedException();
+        }
+        
+        // This is cached in the HandlerPipeline for each endpoint, so 
+        // not terribly important to cache it here
+        var chain = ChainFor(messageType);
+
+        if (chain == null)
+        {
+            // There are a couple special types where this might be cached. Like for Acknowledgement
+            if (_handlers.TryFind(messageType, out var handler)) return handler;
+            
+            // This was to handle moving Event<T> to IEvent<T>
+            var candidates = _chains.Enumerate().Where(x => messageType.CanBeCastTo(x.Key)).ToArray();
+            if (candidates.Length == 1)
+            {
+                chain = candidates[0].Value;
+            }
+        }
+        
+        if (chain == null) return null;
+
+        // If there are no sticky handlers, just use the default handler
+        // for the message type
+        if (!chain.ByEndpoint.Any()) return HandlerFor(messageType);
+
+        // See if there is a sticky handler that is specific to this endpoint
+        var sticky = chain.ByEndpoint.FirstOrDefault(x => x.Endpoints.Contains(endpoint));
+        
+        // If none, use the default
+        if (sticky == null) return HandlerFor(messageType);
+
+        return resolveHandlerFromChain(messageType, sticky, false);
     }
 
     public IMessageHandler? HandlerFor(Type messageType)
@@ -138,7 +186,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         
         if (_chains.TryFind(messageType, out var chain))
         {
-            return resolveHandlerFromChain(messageType, chain);
+            return resolveHandlerFromChain(messageType, chain, true);
         }
 
         // This was to handle moving Event<T> to IEvent<T>
@@ -146,7 +194,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         if (candidates.Length == 1)
         {
             chain = candidates[0].Value;
-            return resolveHandlerFromChain(messageType, chain);
+            return resolveHandlerFromChain(messageType, chain, true);
         }
 
         // memoize the "miss"
@@ -154,7 +202,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         return null;
     }
 
-    private IMessageHandler? resolveHandlerFromChain(Type messageType, HandlerChain chain)
+    private IMessageHandler? resolveHandlerFromChain(Type messageType, HandlerChain chain, bool shouldCacheGlobally)
     {
         IMessageHandler handler;
         if (chain.Handler != null)
@@ -168,7 +216,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
                 Debug.WriteLine("Starting to compile chain " + chain.MessageType.NameInCode());
                 if (chain.Handler == null)
                 {
-                    chain.InitializeSynchronously(Rules, this, Container);
+                    chain.InitializeSynchronously(Rules, this, Container.Services);
                     handler = chain.CreateHandler(Container!);
                 }
                 else
@@ -180,12 +228,15 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
             }
         }
 
-        _handlers = _handlers.AddOrUpdate(messageType, handler);
+        if (shouldCacheGlobally)
+        {
+            _handlers = _handlers.AddOrUpdate(messageType, handler);
+        }
 
         return handler;
     }
 
-    internal void Compile(WolverineOptions options, IContainer container)
+    internal void Compile(WolverineOptions options, IServiceContainer container)
     {
         if (_hasCompiled)
         {
@@ -194,7 +245,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
         _hasCompiled = true;
 
-        var logger = (ILogger)container.TryGetInstance<ILogger<HandlerDiscovery>>() ?? NullLogger.Instance;
+        var logger = (ILogger)container.Services.GetService<ILogger<HandlerDiscovery>>() ?? NullLogger.Instance;
 
         Rules = options.CodeGeneration;
 
@@ -216,9 +267,23 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
             AddRange(calls);
         }
 
-        Group();
+        Group(options);
 
-        foreach (var policy in handlerPolicies(options)) policy.Apply(Chains, Rules, container);
+        // This was to address the issue with policies not extending to sticky message
+        // handlers
+        IEnumerable<HandlerChain> explodeChains(HandlerChain chain)
+        {
+            yield return chain;
+
+            foreach (var stickyChain in chain.ByEndpoint)
+            {
+                yield return stickyChain;
+            }
+        }
+
+        var allChains = Chains.SelectMany(explodeChains).ToArray();
+
+        foreach (var policy in handlerPolicies(options)) policy.Apply(allChains, Rules, container);
 
         Container = container;
 
@@ -255,6 +320,16 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
                 }
             }
         }
+
+        foreach (var pair in MappedGenericMessageTypes)
+        {
+            var matches = _messageTypes.Enumerate().Select(x => x.Value).Where(x => x.Closes(pair.Key));
+            foreach (var interfaceType in matches)
+            {
+                var closedType = pair.Value.MakeGenericType(interfaceType.GetGenericArguments());
+                RegisterMessageType(closedType);
+            }
+        }
     }
 
     private IEnumerable<IHandlerPolicy> handlerPolicies(WolverineOptions options)
@@ -278,7 +353,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         return _messageTypes.TryFind(messageTypeName, out messageType);
     }
 
-    public void Group()
+    public void Group(WolverineOptions options)
     {
         lock (_groupingLock)
         {
@@ -289,7 +364,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
             _calls
                 .GroupBy(x => x.MessageType)
-                .Select(buildHandlerChain)
+                .Select(x => buildHandlerChain(options, x))
                 .Each(chain => { _chains = _chains.AddOrUpdate(chain.MessageType, chain); });
 
 
@@ -310,15 +385,15 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         return false;
     }
 
-    private HandlerChain buildHandlerChain(IGrouping<Type, HandlerCall> group)
+    private HandlerChain buildHandlerChain(WolverineOptions options, IGrouping<Type, HandlerCall> group)
     {
         // If the SagaChain handler method is a static, then it's valid to be a "Start" method
         if (group.Any(isSagaMethod))
         {
-            return new SagaChain(group, this);
+            return new SagaChain(options, group, this);
         }
 
-        return new HandlerChain(group, this);
+        return new HandlerChain(options, group, this);
     }
 
     internal void AddForwarders(Forwarders forwarders)

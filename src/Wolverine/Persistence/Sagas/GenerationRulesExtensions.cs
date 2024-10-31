@@ -1,6 +1,6 @@
 using JasperFx.CodeGeneration;
-using Lamar;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 
 namespace Wolverine.Persistence.Sagas;
 
@@ -28,6 +28,26 @@ public static class GenerationRulesExtensions
             rules.Properties[PersistenceKey] = list;
         }
     }
+    
+    /// <summary>
+    ///     The currently known strategy for code generating transaction middleware, but give this strategy
+    /// precedence
+    /// </summary>
+    public static void InsertFirstPersistenceStrategy<T>(this GenerationRules rules) where T : IPersistenceFrameProvider, new()
+    {
+        if (rules.Properties.TryGetValue(PersistenceKey, out var raw) && raw is List<IPersistenceFrameProvider> list)
+        {
+            if (!list.OfType<T>().Any())
+            {
+                list.Insert(0, new T());
+            }
+        }
+        else
+        {
+            list = [new T()];
+            rules.Properties[PersistenceKey] = list;
+        }
+    }
 
     public static List<IPersistenceFrameProvider> PersistenceProviders(this GenerationRules rules)
     {
@@ -37,14 +57,14 @@ public static class GenerationRulesExtensions
             return list;
         }
 
-        return [];
+        return [_nullo];
     }
 
     /// <summary>
     ///     The currently known strategy for code generating transaction middleware
     /// </summary>
     public static IPersistenceFrameProvider GetPersistenceProviders(this GenerationRules rules, IChain chain,
-        IContainer container)
+        IServiceContainer container)
     {
         if (rules.Properties.TryGetValue(PersistenceKey, out var raw) && raw is List<IPersistenceFrameProvider> list)
         {

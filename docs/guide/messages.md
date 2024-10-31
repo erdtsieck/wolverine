@@ -10,6 +10,10 @@ to the proper handler that can handle that message. Here's some facts about mess
 * Have a string identity for the message type that Wolverine will use as an identification when storing messages
   in either durable message storage or within external transports
 
+The default serialization option is [System.Text.Json](https://learn.microsoft.com/en-us/dotnet/api/system.text.json?view=net-8.0), as this is now mature, seems to work with just about anything now, and sets you up
+for relatively easy integration with a range of external non-Wolverine applications. You also have the option to fall back
+to Newtonsoft.JSON or to use higher performance [MemoryPack](/guide/messages.html#memorypack-serialization) or [MessagePack](/guide/messages.html#messagepack-serialization) integrations with Wolverine.
+
 ## Message Type Name or Alias
 
 Let's say that you have a basic message structure like this:
@@ -125,7 +129,7 @@ Or lastly, make up your own criteria to find and mark message types within your 
 ```cs
 opts.Discovery.CustomizeHandlerDiscovery(types => types.Includes.Implements<IDiagnosticsMessageHandler>());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Diagnostics/DiagnosticsApp/Program.cs#L37-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_your_own_marker_type' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Diagnostics/DiagnosticsApp/Program.cs#L39-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_your_own_marker_type' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that only types that are in assemblies either marked with `[assembly: WolverineModule]` or the main application assembly

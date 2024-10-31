@@ -106,7 +106,7 @@ with a handler policy like this:
 ```cs
 public class CommandsAreTransactional : IHandlerPolicy
 {
-    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container)
     {
         // Important! Create a brand new TransactionalFrame
         // for each chain
@@ -116,7 +116,7 @@ public class CommandsAreTransactional : IHandlerPolicy
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L84-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L86-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Then add the policy to your application like this:

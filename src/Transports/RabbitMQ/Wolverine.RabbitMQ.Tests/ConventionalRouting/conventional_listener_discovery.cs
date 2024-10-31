@@ -1,7 +1,7 @@
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Shouldly;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Runtime.Routing;
 using Wolverine.Util;
@@ -14,15 +14,20 @@ public class conventional_listener_discovery : ConventionalRoutingContext
     [Fact]
     public void disable_sender_with_lambda()
     {
-        ConfigureConventions(c => c.ExchangeNameForSending(t =>
-        {
-            if (t == typeof(PublishedMessage))
+        ConfigureConventions(c =>
             {
-                return null; // should not be routed
-            }
+                c.IncludeTypes(c => c == typeof(PublishedMessage));
+                c.ExchangeNameForSending(t =>
+                {
+                    if (t == typeof(PublishedMessage))
+                    {
+                        return null; // should not be routed
+                    }
 
-            return t.ToMessageTypeName();
-        }));
+                    return t.ToMessageTypeName();
+                });
+            }
+          );
 
         AssertNoRoutes<PublishedMessage>();
     }
@@ -30,7 +35,10 @@ public class conventional_listener_discovery : ConventionalRoutingContext
     [Fact]
     public void exclude_types()
     {
-        ConfigureConventions(c => { c.ExcludeTypes(t => t == typeof(PublishedMessage)); });
+        ConfigureConventions(c =>
+        {
+            c.ExcludeTypes(t => t == typeof(PublishedMessage) || t == typeof(HeadersMessage));
+        });
 
         AssertNoRoutes<PublishedMessage>();
 
@@ -62,7 +70,12 @@ public class conventional_listener_discovery : ConventionalRoutingContext
     [Fact]
     public void configure_sender_overrides()
     {
-        ConfigureConventions(c => c.ConfigureSending((c, _) => c.AddOutgoingRule(new FakeEnvelopeRule())));
+        ConfigureConventions(c =>
+            {
+                c.IncludeTypes(t => t == typeof(PublishedMessage));
+                c.ConfigureSending((c, _) => c.AddOutgoingRule(new FakeEnvelopeRule()));
+            }
+           );
 
         var route = PublishingRoutesFor<PublishedMessage>().Single().As<MessageRoute>().Sender.Endpoint
             .ShouldBeOfType<RabbitMqExchange>();
@@ -73,15 +86,19 @@ public class conventional_listener_discovery : ConventionalRoutingContext
     [Fact]
     public void disable_listener_by_lambda()
     {
-        ConfigureConventions(c => c.QueueNameForListener(t =>
+        ConfigureConventions(c =>
         {
-            if (t == typeof(RoutedMessage))
+            c.IncludeTypes(t => t == typeof(ConventionallyRoutedMessage));
+            c.QueueNameForListener(t =>
             {
-                return null; // should not be routed
-            }
+                if (t == typeof(ConventionallyRoutedMessage))
+                {
+                    return null; // should not be routed
+                }
 
-            return t.ToMessageTypeName();
-        }));
+                return t.ToMessageTypeName();
+            });
+        });
 
         var uri = "rabbitmq://queue/routed".ToUri();
         var endpoint = theRuntime.Endpoints.EndpointFor(uri);
@@ -94,7 +111,11 @@ public class conventional_listener_discovery : ConventionalRoutingContext
     [Fact]
     public void configure_listener()
     {
-        ConfigureConventions(c => c.ConfigureListeners((x, _) => { x.ListenerCount(6); }));
+        ConfigureConventions(c =>
+        {
+            c.IncludeTypes(t => t == typeof(ConventionallyRoutedMessage));
+            c.ConfigureListeners((x, _) => { x.ListenerCount(6); });
+        });
 
         var endpoint = theRuntime.Endpoints.EndpointFor("rabbitmq://queue/routed".ToUri())
             .ShouldBeOfType<RabbitMqQueue>();

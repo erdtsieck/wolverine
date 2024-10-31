@@ -1,7 +1,7 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine.Tracking;
 using Xunit;
 
@@ -18,7 +18,10 @@ public class end_to_end_with_conventional_routing_with_prefix : IDisposable
         {
             opts.UseRabbitMq()
                 .PrefixIdentifiers("shazaam")
-                .UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
+                .UseConventionalRouting(x =>
+                {
+                    x.IncludeTypes(ConventionalRoutingTestDefaults.RoutingMessageOnly);
+                }).AutoProvision().AutoPurgeOnStartup();
             opts.DisableConventionalDiscovery();
             opts.ServiceName = "Sender";
         });
@@ -27,7 +30,10 @@ public class end_to_end_with_conventional_routing_with_prefix : IDisposable
         {
             opts.UseRabbitMq()
                 .PrefixIdentifiers("shazaam")
-                .UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
+                .UseConventionalRouting(x =>
+                {
+                    x.IncludeTypes(ConventionalRoutingTestDefaults.RoutingMessageOnly);
+                }).AutoProvision().AutoPurgeOnStartup();
             opts.ServiceName = "Receiver";
         });
     }
@@ -45,11 +51,11 @@ public class end_to_end_with_conventional_routing_with_prefix : IDisposable
             .AlsoTrack(_receiver)
             .IncludeExternalTransports()
             .Timeout(30.Seconds())
-            .SendMessageAndWaitAsync(new RoutedMessage());
+            .SendMessageAndWaitAsync(new ConventionallyRoutedMessage());
 
         var received = session
             .AllRecordsInOrder()
-            .Where(x => x.Envelope.Message?.GetType() == typeof(RoutedMessage))
+            .Where(x => x.Envelope.Message?.GetType() == typeof(ConventionallyRoutedMessage))
             .Single(x => x.MessageEventType == MessageEventType.Received);
 
         received

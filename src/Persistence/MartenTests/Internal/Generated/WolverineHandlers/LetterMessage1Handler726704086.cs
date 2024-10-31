@@ -19,9 +19,11 @@ namespace Internal.Generated.WolverineHandlers
 
             return System.Threading.Tasks.Task.CompletedTask;
         }
+
     }
 
     // END: LetterMessage1Handler726704086
     
     
 }
+

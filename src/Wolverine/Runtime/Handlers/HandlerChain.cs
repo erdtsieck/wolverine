@@ -6,12 +6,16 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Lamar;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
+using Wolverine.Persistence;
+using Wolverine.Runtime.Routing;
+using Wolverine.Transports.Local;
+using Wolverine.Transports.Stub;
 
 namespace Wolverine.Runtime.Handlers;
 
@@ -49,7 +53,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         _parent = parent;
         MessageType = messageType ?? throw new ArgumentNullException(nameof(messageType));
 
-        TypeName = messageType.ToSuffixedTypeName(HandlerSuffix);
+        TypeName = messageType.ToSuffixedTypeName(HandlerSuffix).Replace("[]", "Array");
 
         Description = "Message Handler for " + MessageType.FullNameInCode();
 
@@ -61,16 +65,100 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         Handlers.Add(call);
     }
 
-    public HandlerChain(IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : this(grouping.Key, parent)
+    public HandlerChain(WolverineOptions options, IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : this(grouping.Key, parent)
     {
         Handlers.AddRange(grouping);
 
         var i = 0;
 
         foreach (var handler in Handlers)
-        foreach (var create in handler.Creates)
-            i = DisambiguateOutgoingVariableName(create, i);
+        {
+            foreach (var create in handler.Creates)
+            {
+                i = DisambiguateOutgoingVariableName(create, i);
+                
+                // This was done to enable request/response through the HTTP transport
+                if (create.VariableType.IsConcrete())
+                {
+                    parent.RegisterMessageType(create.VariableType);
+                }
+            }
+        }
+
+        if (grouping.Count() > 1)
+        {
+            foreach (var handlerCall in grouping)
+            {
+                tryAssignStickyEndpoints(handlerCall, options);
+            }
+        }
     }
+
+    private void tryAssignStickyEndpoints(HandlerCall handlerCall, WolverineOptions options)
+    {
+        var endpoints = findStickyEndpoints(handlerCall, options).Distinct().ToArray();
+        if (endpoints.Any())
+        {
+            // Need to set a publishing rule for this message type to any local
+            // queues
+            foreach (var localQueue in endpoints.OfType<LocalQueue>())
+            {
+                localQueue.Subscriptions.Add(Subscription.ForType(MessageType));
+            }
+            
+            foreach (var stub in endpoints.OfType<StubEndpoint>())
+            {
+                stub.Subscriptions.Add(Subscription.ForType(MessageType));
+            }
+            
+            var chain = new HandlerChain(handlerCall, options.HandlerGraph);
+            foreach (var endpoint in endpoints)
+            {
+                chain.RegisterEndpoint(endpoint);
+            }
+
+            Handlers.Remove(handlerCall);
+            
+            _byEndpoint.Add(chain);
+        }
+    }
+
+    private IEnumerable<Endpoint> findStickyEndpoints(HandlerCall call, WolverineOptions options)
+    {
+        if (call.HandlerType.TryGetAttribute<StickyHandlerAttribute>(out var att))
+        {
+            foreach (var endpoint in options.FindOrCreateEndpointByName(att.EndpointName))
+            {
+                yield return endpoint;
+            }
+        }
+        
+        if (call.Method.TryGetAttribute<StickyHandlerAttribute>(out att))
+        {
+            foreach (var endpoint in options.FindOrCreateEndpointByName(att.EndpointName))
+            {
+                yield return endpoint;
+            }
+        }
+
+        foreach (var endpoint in options.FindEndpointsWithHandlerType(call.HandlerType))
+        {
+            yield return endpoint;
+        }
+    }
+
+    private readonly List<HandlerChain> _byEndpoint = [];
+
+    public IReadOnlyList<HandlerChain> ByEndpoint => _byEndpoint;
+
+    private readonly List<Endpoint> _endpoints = [];
+
+    /// <summary>
+    /// In the case of "sticky" message handlers, this helps group the handler by an endpoint
+    /// </summary>
+    public IReadOnlyList<Endpoint> Endpoints => _endpoints;
+
+    public void RegisterEndpoint(Endpoint endpoint) => _endpoints.Fill(endpoint);
 
     /// <summary>
     ///     At what level should Wolverine log messages about messages succeeding? The default
@@ -191,7 +279,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             return false;
         }
 
-        var container = services!.As<IContainer>();
+        var container = services.GetRequiredService<IServiceContainer>();
         applyCustomizations(rules, container);
 
         Handler = (MessageHandler)container.QuickBuild(_handlerType);
@@ -268,7 +356,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         return new HandlerChain(call, parent);
     }
 
-    internal MessageHandler CreateHandler(IContainer container)
+    internal MessageHandler CreateHandler(IServiceContainer container)
     {
         if (_handlerType == null)
         {
@@ -292,7 +380,8 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     /// <param name="messageVariable"></param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
-    internal virtual List<Frame> DetermineFrames(GenerationRules rules, IContainer container, MessageVariable messageVariable)
+    internal virtual List<Frame> DetermineFrames(GenerationRules rules, IServiceContainer container,
+        MessageVariable messageVariable)
     {
         if (Handlers.Count == 0)
         {
@@ -319,10 +408,10 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         // The Enqueue cascading needs to happen before the post processors because of the
         // transactional & outbox support
-        return Middleware.Concat(Handlers).Concat(handlerReturnValueFrames).Concat(Postprocessors).ToList();
+        return Middleware.Concat(container.TryCreateConstructorFrames(Handlers)).Concat(Handlers).Concat(handlerReturnValueFrames).Concat(Postprocessors).ToList();
     }
 
-    protected void applyCustomizations(GenerationRules rules, IContainer container)
+    protected void applyCustomizations(GenerationRules rules, IServiceContainer container)
     {
         if (!_hasConfiguredFrames)
         {

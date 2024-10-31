@@ -6,12 +6,12 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <FrameworkReference Include="Microsoft.AspNetCore.App" />
-        
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.6.0"/>
-        
-        <PackageReference Include="Shouldly" Version="4.2.1" />
-        <PackageReference Include="xunit" Version="2.8.0" />
+
+        <PackageReference Include="Shouldly" Version="4.2.1"/>
+        <PackageReference Include="xunit" Version="2.9.0"/>
         <PackageReference Include="xunit.runner.visualstudio" Version="2.8.0">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
@@ -23,15 +23,17 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\Samples\OrderSagaSample\OrderSagaSample.csproj" />
-        <ProjectReference Include="..\Wolverine.Marten\Wolverine.Marten.csproj" />
-        <ProjectReference Include="..\..\Testing\TestingSupport\TestingSupport.csproj" />
+        <ProjectReference Include="..\..\Extensions\Wolverine.MessagePack\Wolverine.MessagePack.csproj" />
+        <ProjectReference Include="..\..\Samples\OrderSagaSample\OrderSagaSample.csproj"/>
+        <ProjectReference Include="..\Wolverine.Marten\Wolverine.Marten.csproj"/>
+        <ProjectReference Include="..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
     </ItemGroup>
-    
     <ItemGroup>
         <Compile Include="..\..\Servers.cs">
             <Link>Servers.cs</Link>
         </Compile>
     </ItemGroup>
+
+
 
 </Project>

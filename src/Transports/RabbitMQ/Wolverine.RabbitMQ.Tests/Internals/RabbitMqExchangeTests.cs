@@ -10,7 +10,7 @@ namespace Wolverine.RabbitMQ.Tests.Internals;
 
 public class configuration_model_specs
 {
-    private readonly IModel theChannel = Substitute.For<IModel>();
+    private readonly IChannel theChannel = Substitute.For<IChannel>();
 
     private readonly RabbitMqTransport theTransport = new();
 
@@ -39,9 +39,9 @@ public class configuration_model_specs
     }
 
     [Fact]
-    public void exchange_declare()
+    public async Task exchange_declare()
     {
-        var channel = Substitute.For<IModel>();
+        var channel = Substitute.For<IChannel>();
         var exchange = new RabbitMqExchange("foo", new RabbitMqTransport())
         {
             ExchangeType = ExchangeType.Fanout,
@@ -49,17 +49,37 @@ public class configuration_model_specs
             IsDurable = false
         };
 
-        exchange.Declare(channel, NullLogger.Instance);
+        await exchange.DeclareAsync(channel, NullLogger.Instance);
 
-        channel.Received().ExchangeDeclare("foo", "fanout", false, true, exchange.Arguments);
+        await channel.Received().ExchangeDeclareAsync("foo", "fanout", false, true, exchange.Arguments);
 
         exchange.HasDeclared.ShouldBeTrue();
     }
+    
+    
+    [Fact]
+    public async Task exchange_declare_headers()
+    {
+        var channel = Substitute.For<IChannel>();
+        var exchange = new RabbitMqExchange("foo", new RabbitMqTransport())
+        {
+            ExchangeType = ExchangeType.Headers,
+            AutoDelete = true,
+            IsDurable = false
+        };
+
+        await exchange.DeclareAsync(channel, NullLogger.Instance);
+
+        await channel.Received().ExchangeDeclareAsync("foo", "headers", false, true, exchange.Arguments);
+
+        exchange.HasDeclared.ShouldBeTrue();
+    }
+    
 
     [Fact]
-    public void already_latched()
+    public async Task already_latched()
     {
-        var channel = Substitute.For<IModel>();
+        var channel = Substitute.For<IChannel>();
         var exchange = new RabbitMqExchange("foo", new RabbitMqTransport())
         {
             ExchangeType = ExchangeType.Fanout,
@@ -71,7 +91,7 @@ public class configuration_model_specs
         var prop = ReflectionHelper.GetProperty<RabbitMqExchange>(x => x.HasDeclared);
         prop.SetValue(exchange, true);
 
-        exchange.Declare(channel, NullLogger.Instance);
+        await exchange.DeclareAsync(channel, NullLogger.Instance);
 
         channel.DidNotReceiveWithAnyArgs();
     }

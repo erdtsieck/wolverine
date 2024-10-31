@@ -1,5 +1,5 @@
 using Oakton.Resources;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 
 namespace Wolverine.Kafka.Tests;
 
@@ -16,22 +16,23 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 
         OutboundAddress = new Uri("kafka://topic/" + receiverTopic);
 
+
+        await ReceiverIs(opts =>
+        {
+            opts.UseKafka("localhost:9092");
+
+            opts.ListenToKafkaTopic(receiverTopic).Named("receiver").BufferedInMemory();
+
+            opts.Services.AddResourceSetupOnStartup();
+        });
+        
         await SenderIs(opts =>
         {
-            opts.UseKafka("localhost:29092").ConfigureConsumers(x => x.EnableAutoCommit = false);
+            opts.UseKafka("localhost:9092").ConfigureConsumers(x => x.EnableAutoCommit = false);
 
             opts.ListenToKafkaTopic(senderTopic);
 
             opts.PublishAllMessages().ToKafkaTopic(receiverTopic).BufferedInMemory();
-
-            opts.Services.AddResourceSetupOnStartup();
-        });
-
-        await ReceiverIs(opts =>
-        {
-            opts.UseKafka("localhost:29092");
-
-            opts.ListenToKafkaTopic(receiverTopic).Named("receiver").BufferedInMemory();
 
             opts.Services.AddResourceSetupOnStartup();
         });
@@ -43,7 +44,6 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
     }
 }
 
-[Collection("acceptance")]
 public class BufferedSendingAndReceivingCompliance : TransportCompliance<BufferedComplianceFixture>;
 
 public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetime
@@ -63,7 +63,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 
         await SenderIs(opts =>
         {
-            opts.UseKafka("localhost:29092").AutoProvision();
+            opts.UseKafka("localhost:9092").AutoProvision();
 
             opts.ListenToKafkaTopic(senderTopic).UseForReplies();
 
@@ -74,7 +74,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 
         await ReceiverIs(opts =>
         {
-            opts.UseKafka("localhost:29092").AutoProvision();
+            opts.UseKafka("localhost:9092").AutoProvision();
 
             opts.ListenToKafkaTopic(receiverTopic).Named("receiver").ProcessInline();
 
@@ -88,5 +88,4 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
     }
 }
 
-[Collection("acceptance")]
 public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineComplianceFixture>;

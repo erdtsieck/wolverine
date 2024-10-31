@@ -17,6 +17,8 @@ namespace Internal.Generated.WolverineHandlers
             _outboxedSessionFactory = outboxedSessionFactory;
         }
 
+
+
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
             // The actual message body
@@ -29,6 +31,7 @@ namespace Internal.Generated.WolverineHandlers
             var eventStream = await eventStore.FetchForWriting<MartenTests.SelfLetteredAggregate>(incrementA2.SelfLetteredAggregateId, cancellation).ConfigureAwait(false);
 
             if (eventStream.Aggregate == null) throw new Wolverine.Marten.UnknownAggregateException(typeof(MartenTests.SelfLetteredAggregate), incrementA2.SelfLetteredAggregateId);
+            var selfLetteredAggregate = new MartenTests.SelfLetteredAggregate();
             
             // The actual message execution
             var outgoing1 = eventStream.Aggregate.Handle(incrementA2, _logger);
@@ -36,9 +39,11 @@ namespace Internal.Generated.WolverineHandlers
             eventStream.AppendOne(outgoing1);
             await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
         }
+
     }
 
     // END: IncrementA2Handler79726078
     
     
 }
+

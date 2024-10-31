@@ -1,14 +1,14 @@
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
-using TestingSupport.Compliance;
 using Wolverine.AmazonSqs.Internal;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Runtime;
 
 namespace Wolverine.AmazonSqs.Tests;
 
 public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
-    public static int Number = 0;
+    public static int Number;
 
     public PrefixedComplianceFixture() : base(new Uri("sqs://foo-buffered-receiver"), 120)
     {
@@ -46,7 +46,6 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
     }
 }
 
-[Collection("acceptance")]
 public class PrefixedSendingAndReceivingCompliance : TransportCompliance<PrefixedComplianceFixture>
 {
     [Fact]

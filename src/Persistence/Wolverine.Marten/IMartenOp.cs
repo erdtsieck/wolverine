@@ -1,6 +1,6 @@
 ﻿using JasperFx.Core;
 using Marten;
-using CombGuidIdGeneration = Marten.Schema.Identity.CombGuidIdGeneration;
+using MassTransit;
 
 namespace Wolverine.Marten;
 
@@ -168,6 +168,18 @@ public class StartStream<T> : IStartStream where T : class
     }
 
     public StartStream(string streamKey, params object[] events)
+    {
+        StreamKey = streamKey;
+        Events.AddRange(events);
+    }
+    
+    public StartStream(Guid streamId, IList<object> events)
+    {
+        StreamId = streamId;
+        Events.AddRange(events);
+    }
+
+    public StartStream(string streamKey, IList<object> events)
     {
         StreamKey = streamKey;
         Events.AddRange(events);

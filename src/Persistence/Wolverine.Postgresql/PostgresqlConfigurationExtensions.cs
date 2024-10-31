@@ -68,7 +68,7 @@ public static class PostgresqlConfigurationExtensions
     public static PostgresqlPersistenceExpression UsePostgresqlPersistenceAndTransport(this WolverineOptions options,
         string connectionString,
         string? schema = null,
-        string? transportSchema = null)
+        string? transportSchema = "wolverine_queues")
     {
         var extension = new PostgresqlBackedPersistence
         {
@@ -84,8 +84,7 @@ public static class PostgresqlConfigurationExtensions
         }
         else
         {
-            schema = "dbo";
-
+            schema = "public";
         }
 
         extension.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();
@@ -101,7 +100,7 @@ public static class PostgresqlConfigurationExtensions
             }
             else
             {
-                schema = "dbo";
+                schema = "public";
 
             }
 
@@ -109,12 +108,8 @@ public static class PostgresqlConfigurationExtensions
         });
 
         var transport = options.Transports.GetOrCreate<PostgresqlTransport>();
+        transport.MessageStorageSchemaName = schema ?? "public";
         
-        if (schema.IsNotEmpty())
-        {
-            transport.TransportSchemaName = schema;
-            transport.MessageStorageSchemaName = schema;
-        }
         if (transportSchema.IsNotEmpty())
         {
             transport.TransportSchemaName = transportSchema;

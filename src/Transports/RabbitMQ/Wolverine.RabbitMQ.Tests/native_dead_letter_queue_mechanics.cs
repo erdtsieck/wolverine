@@ -10,7 +10,7 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;
 
-public class native_dead_letter_queue_mechanics : RabbitMQContext, IDisposable
+public class native_dead_letter_queue_mechanics : IDisposable
 {
     private readonly string QueueName = Guid.NewGuid().ToString();
     private IHost _host;
@@ -58,7 +58,7 @@ public class native_dead_letter_queue_mechanics : RabbitMQContext, IDisposable
         theTransport.Exchanges.Contains(RabbitMqTransport.DeadLetterQueueName).ShouldBeTrue();
         theTransport.Queues.Contains(RabbitMqTransport.DeadLetterQueueName).ShouldBeTrue();
 
-        var exchange = theTransport.Exchanges[RabbitMqTransport.DeadLetterQueueName];
+        var exchange = theTransport.Queues[RabbitMqTransport.DeadLetterQueueName];
         exchange.Bindings().Single().Queue.ShouldBeSameAs(theTransport.Queues[RabbitMqTransport.DeadLetterQueueName]);
     }
 
@@ -118,12 +118,12 @@ public class native_dead_letter_queue_mechanics : RabbitMQContext, IDisposable
         var initialQueue = theTransport.Queues[QueueName];
         var deadLetterQueue = theTransport.Queues[RabbitMqTransport.DeadLetterQueueName];
 
-        initialQueue.QueuedCount().ShouldBe(0);
+        (await initialQueue.QueuedCountAsync()).ShouldBe(0);
 
         var attempts = 0;
         while (attempts < 5)
         {
-            var queuedCount = deadLetterQueue.QueuedCount();
+            var queuedCount = await deadLetterQueue.QueuedCountAsync();
             if (queuedCount > 0) return;
 
             attempts++;
@@ -146,12 +146,12 @@ public class native_dead_letter_queue_mechanics : RabbitMQContext, IDisposable
         var initialQueue = theTransport.Queues[QueueName];
         var deadLetterQueue = theTransport.Queues[deadLetterQueueName];
 
-        initialQueue.QueuedCount().ShouldBe(0);
+        (await initialQueue.QueuedCountAsync()).ShouldBe(0);
 
         var attempts = 0;
         while (attempts < 5)
         {
-            var queuedCount = deadLetterQueue.QueuedCount();
+            var queuedCount = await deadLetterQueue.QueuedCountAsync();
             if (queuedCount > 0) return;
 
             attempts++;

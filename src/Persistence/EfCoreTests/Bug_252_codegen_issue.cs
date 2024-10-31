@@ -1,5 +1,6 @@
 using IntegrationTests;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -49,13 +50,15 @@ public class Bug_252_codegen_issue
 
         var table = new Table("OrderSagas");
         table.AddColumn<Guid>("id").AsPrimaryKey();
+        table.AddColumn<int>("version");
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         await conn.OpenAsync();
 
         var migration = await SchemaMigration.DetermineAsync(conn, table);
         await new SqlServerMigrator().ApplyAllAsync(conn, migration, AutoCreate.All);
 
-        var dbContext = host.Services.GetRequiredService<AppDbContext>();
+        using var scope = host.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await dbContext.Database.EnsureCreatedAsync();
 
         await conn.CloseAsync();
@@ -92,11 +95,12 @@ public class Bug_252_codegen_issue
 
         await conn.CloseAsync();
 
-        var dbContext = host.Services.GetRequiredService<AppDbContext>();
+        using var scope = host.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await dbContext.Database.EnsureCreatedAsync();
 
-        var chain = host.Services.GetRequiredService<HandlerGraph>().ChainFor<CreateOrder>();
-
+        var chain = host.Services.GetRequiredService<HandlerGraph>().HandlerFor<CreateOrder>().As<MessageHandler>().Chain;
+        
         var lines = chain.SourceCode.ReadLines();
 
         // Just proving that the code generation did NOT opt to use a nested container

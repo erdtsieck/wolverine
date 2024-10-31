@@ -1,7 +1,7 @@
 using Marten;
 using Microsoft.Extensions.Hosting;
-using TestingSupport;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine;
 using Wolverine.Attributes;
 
@@ -62,6 +62,28 @@ namespace DocumentationSamples
 
     #endregion
 
+    public interface IProjectRepository
+    {
+        Task CreateAsync(Project project);
+    }
+
+    public record CreateProject(string Name);
+
+    #region sample_instance_handler
+
+    // Wolverine does constructor injection as you're probably
+    // used to with basically every other framework in .NET
+    public class CreateProjectHandler(IProjectRepository Repository)
+    {
+        public async Task HandleAsync(CreateProject message)
+        {
+            await Repository.CreateAsync(new Project(message.Name));
+        }
+    }
+
+    #endregion
+
+    public record Project(string Name);
 
     public interface IEmailService;
 

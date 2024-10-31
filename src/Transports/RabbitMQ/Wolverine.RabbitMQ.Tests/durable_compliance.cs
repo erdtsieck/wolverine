@@ -1,7 +1,7 @@
 using IntegrationTests;
 using JasperFx.Core;
 using Marten;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Marten;
 using Xunit;
 
@@ -29,7 +29,7 @@ public class RabbitMqTransportFixture : TransportComplianceFixture, IAsyncLifeti
                     m.Connection(Servers.PostgresConnectionString);
                     m.DisableNpgsqlLogging = true;
                 })
-                .IntegrateWithWolverine("rabbit_sender");
+                .IntegrateWithWolverine(x => x.MessageStorageSchemaName = "rabbit_sender");
 
 
             opts.UseRabbitMq()
@@ -51,7 +51,7 @@ public class RabbitMqTransportFixture : TransportComplianceFixture, IAsyncLifeti
                     m.Connection(Servers.PostgresConnectionString);
                     m.DisableNpgsqlLogging = true;
                 })
-                .IntegrateWithWolverine("rabbit_receiver");
+                .IntegrateWithWolverine(x => x.MessageStorageSchemaName = "rabbit_receiver");
 
 
             opts.UseRabbitMq()
@@ -67,5 +67,4 @@ public class RabbitMqTransportFixture : TransportComplianceFixture, IAsyncLifeti
     }
 }
 
-[Collection("acceptance")]
 public class durable_compliance : TransportCompliance<RabbitMqTransportFixture>;

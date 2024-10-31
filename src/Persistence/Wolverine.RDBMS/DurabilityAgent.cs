@@ -22,7 +22,6 @@ internal class DurabilityAgent : IAgent
     private readonly IWolverineRuntime _runtime;
     private readonly DurabilitySettings _settings;
     private readonly ILogger<DurabilityAgent> _logger;
-    private Timer? _reassignmentTimer;
     private Timer? _scheduledJobTimer;
     private Timer? _recoveryTimer;
 
@@ -62,6 +61,8 @@ internal class DurabilityAgent : IAgent
         });
     }
 
+    public AgentStatus Status { get; set; } = AgentStatus.Started;
+
     public static Uri SimplifyUri(Uri uri)
     {
         return new Uri($"{DurabilityAgent.AgentScheme}://{uri.Host}");
@@ -92,12 +93,7 @@ internal class DurabilityAgent : IAgent
             var batch = new DatabaseOperationBatch(_database, operations);
             _runningBlock.Post(batch);
         }, _settings, recoveryStart, _settings.ScheduledJobPollingTime);
-
-        _reassignmentTimer =
-            new Timer(
-                _ => { _runningBlock.Post(new ReassignDormantNodes(_runtime.Storage.Nodes, _database)); },
-                _settings, _settings.FirstNodeReassignmentExecution, _settings.NodeReassignmentPollingTime);
-
+        
         if (AutoStartScheduledJobPolling)
         {
             StartScheduledJobPolling();
@@ -122,15 +118,12 @@ internal class DurabilityAgent : IAgent
             await _scheduledJobTimer.DisposeAsync();
         }
 
-        if (_reassignmentTimer != null)
-        {
-            await _reassignmentTimer.DisposeAsync();
-        }
-
         if (_recoveryTimer != null)
         {
             await _recoveryTimer.DisposeAsync();
         }
+
+        Status = AgentStatus.Stopped;
     }
 
     public Uri Uri { get; internal set; }

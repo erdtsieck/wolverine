@@ -1,6 +1,6 @@
-﻿using System.Runtime.Serialization;
-using JasperFx.Core;
+﻿using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using MassTransit;
 using Wolverine.Attributes;
 using Wolverine.Util;
 
@@ -20,6 +20,22 @@ public partial class Envelope
     private TimeSpan? _scheduleDelay;
     private DateTimeOffset? _scheduledTime;
 
+    /// <summary>
+    /// Create an envelope for a batched message
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="items"></param>
+    /// <returns></returns>
+    public Envelope(object message, IEnumerable<Envelope> batch)
+    {
+        Message = message;
+        Batch = batch.ToArray();
+        foreach (var envelope in Batch)
+        {
+            envelope.InBatch = true;
+        }
+    }
+    
     public Envelope()
     {
     }
@@ -28,7 +44,7 @@ public partial class Envelope
     {
         Message = message ?? throw new ArgumentNullException(nameof(message));
     }
-
+    
     /// <summary>
     ///     Optional metadata about this message
     /// </summary>
@@ -228,7 +244,7 @@ public partial class Envelope
     /// <summary>
     ///     Specific message id for this envelope
     /// </summary>
-    public Guid Id { get; set; } = CombGuidIdGeneration.NewGuid();
+    public Guid Id { get; set; } = NewId.NextSequentialGuid();
 
     /// <summary>
     ///     If specified, the message type alias for the reply message that is requested for this message
@@ -262,6 +278,11 @@ public partial class Envelope
     /// MessageDeduplicationId for Amazon SQS FIFO Queue
     /// </summary>
     public string? DeduplicationId { get; set; }
+
+    /// <summary>
+    /// Key partition for Kafka
+    /// </summary>
+    public string? PartitionKey { get; set; }
 
     /// <summary>
     ///     Schedule this envelope to be sent or executed
@@ -298,7 +319,7 @@ public partial class Envelope
 
         if (Message != null)
         {
-            text += $" ({Message.GetType().Name})";
+            text += $" ({Message.GetType().FullNameInCode()})";
         }
 
         if (Source != null)
@@ -309,6 +330,16 @@ public partial class Envelope
         if (Destination != null)
         {
             text += $" to {Destination}";
+        }
+
+        if (TenantId.IsNotEmpty())
+        {
+            text += $" for tenant {TenantId}";
+        }
+
+        if (Batch != null)
+        {
+            text += $" as a batch of {Batch.Length}";
         }
 
         return text;

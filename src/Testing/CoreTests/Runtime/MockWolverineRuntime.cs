@@ -1,9 +1,10 @@
 ﻿using System.Diagnostics.Metrics;
 using JasperFx.Core;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
@@ -118,6 +119,11 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
     {
     }
 
+    public IMessageInvoker FindInvoker(string envelopeMessageType)
+    {
+        throw new NotImplementedException();
+    }
+
     public IAgentRuntime Agents { get; } = Substitute.For<IAgentRuntime>();
 
     public bool TryFindMessageType(string? messageTypeName, out Type messageType)
@@ -179,6 +185,8 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
     {
         throw new NotImplementedException();
     }
+
+    public IServiceProvider Services { get; } = new ServiceCollection().BuildServiceProvider();
 
     public void Dispose()
     {

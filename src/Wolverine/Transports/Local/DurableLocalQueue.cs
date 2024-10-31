@@ -26,6 +26,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     public DurableLocalQueue(Endpoint endpoint, WolverineRuntime runtime)
     {
+        Uri = endpoint.Uri;
         _settings = runtime.DurabilitySettings;
         _inbox = runtime.Storage.Inbox;
         _messageLogger = runtime.MessageTracking;
@@ -44,20 +45,22 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         if (endpoint.CircuitBreakerOptions != null)
         {
             CircuitBreaker = new CircuitBreaker(endpoint.CircuitBreakerOptions, this);
-            Pipeline = new HandlerPipeline(runtime, new CircuitBreakerTrackedExecutorFactory(CircuitBreaker, runtime))
+            Pipeline = new HandlerPipeline(runtime, new CircuitBreakerTrackedExecutorFactory(CircuitBreaker, runtime), endpoint)
             {
                 TelemetryEnabled = endpoint.TelemetryEnabled
             };
         }
         else
         {
-            Pipeline = runtime.Pipeline;
+            Pipeline = new HandlerPipeline(runtime, runtime, endpoint);
         }
 
         _receiver = new DurableReceiver(endpoint, runtime, Pipeline);
 
         _storeAndEnqueue = new RetryBlock<Envelope>((e, _) => storeAndEnqueueAsync(e), _logger, _runtime.Cancellation);
     }
+
+    public Uri Uri { get;  }
 
     public IHandlerPipeline Pipeline { get; }
 

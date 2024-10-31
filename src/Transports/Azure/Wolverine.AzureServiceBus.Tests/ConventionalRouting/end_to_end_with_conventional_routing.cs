@@ -1,37 +1,44 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
+using Oakton.Resources;
 using Shouldly;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Wolverine.Tracking;
 using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
 
-public class end_to_end_with_conventional_routing : IDisposable
+public class end_to_end_with_conventional_routing : IAsyncLifetime
 {
-    private readonly IHost _receiver;
-    private readonly IHost _sender;
+    private IHost _receiver;
+    private IHost _sender;
 
-    public end_to_end_with_conventional_routing()
+    public async Task InitializeAsync()
     {
-        _sender = WolverineHost.For(opts =>
-        {
-            opts.UseAzureServiceBusTesting().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
-            opts.DisableConventionalDiscovery();
-            opts.ServiceName = "Sender";
-        });
+        _sender = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAzureServiceBusTesting().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
+                opts.DisableConventionalDiscovery();
+                opts.ServiceName = "Sender";
 
-        _receiver = WolverineHost.For(opts =>
-        {
-            opts.UseAzureServiceBusTesting().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
-            opts.ServiceName = "Receiver";
-        });
+                opts.Services.AddResourceSetupOnStartup();
+            }).StartAsync();
+
+        _receiver = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAzureServiceBusTesting().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
+                opts.ServiceName = "Receiver";
+                
+                opts.Services.AddResourceSetupOnStartup();
+            }).StartAsync();
     }
 
-    public void Dispose()
+    public async Task DisposeAsync()
     {
-        _sender?.Dispose();
-        _receiver?.Dispose();
+        await _sender.StopAsync();
+        await _receiver.StopAsync();
     }
 
     [Fact]

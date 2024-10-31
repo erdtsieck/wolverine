@@ -2,8 +2,8 @@ using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using TestingSupport;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
@@ -69,8 +69,7 @@ public class wolverine_as_command_bus : IntegrationContext, ILogger<WolverineRun
         {
             FailThisManyTimes = 1
         };
-
-
+        
         await Should.ThrowAsync<DivideByZeroException>(() => Publisher.InvokeAsync(message));
     }
 

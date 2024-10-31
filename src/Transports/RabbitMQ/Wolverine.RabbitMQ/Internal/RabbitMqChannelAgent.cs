@@ -1,15 +1,16 @@
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 
 namespace Wolverine.RabbitMQ.Internal;
 
 /// <summary>
 /// Base class for Rabbit MQ listeners and senders
 /// </summary>
-internal abstract class RabbitMqChannelAgent : IDisposable
+internal abstract class RabbitMqChannelAgent : IAsyncDisposable
 {
     private readonly ConnectionMonitor _monitor;
-    protected readonly object Locker = new();
+    protected readonly SemaphoreSlim Locker = new(1, 1);
 
     protected RabbitMqChannelAgent(ConnectionMonitor monitor,
         ILogger logger)
@@ -23,58 +24,61 @@ internal abstract class RabbitMqChannelAgent : IDisposable
 
     internal AgentState State { get; private set; } = AgentState.Disconnected;
 
-    internal IModel? Channel { get; set; }
+    internal IChannel? Channel { get; set; }
 
-    public virtual void Dispose()
+    public virtual async ValueTask DisposeAsync()
     {
         _monitor.Remove(this);
-        teardownChannel();
+        await teardownChannel();
     }
 
-    internal void EnsureConnected()
+    internal async Task EnsureConnected()
     {
         if (State == AgentState.Connected)
         {
             return;
         }
 
-        lock (Locker)
+        await Locker.WaitAsync();
+        
+        if (State == AgentState.Connected)
         {
-            if (State == AgentState.Connected)
-            {
-                return;
-            }
+            return;
+        }
 
-            try
-            {
-                startNewChannel();
-            }
-            catch (Exception e)
-            {
-                Logger.LogError(e, "Error trying to start a new Rabbit MQ channel for {Endpoint}", this);
-            }
-
+        try
+        {
+            await startNewChannel();
             State = AgentState.Connected;
+        }
+        catch (Exception e)
+        {
+            Logger.LogError(e, "Error trying to start a new Rabbit MQ channel for {Endpoint}", this);
+        }
+        finally
+        {
+            Locker.Release();
         }
     }
 
-    protected void startNewChannel()
+    protected async Task startNewChannel()
     {
-        Channel = _monitor.CreateModel();
+        Channel = await _monitor.CreateChannelAsync();
 
-        Channel.CallbackException += (sender, args) =>
+        Channel.CallbackExceptionAsync += (sender, args) =>
         {
             Logger.LogError(args.Exception, "Callback error in Rabbit Mq agent");
+            return Task.CompletedTask;
         };
 
-        Channel.ModelShutdown += ChannelOnModelShutdown;
+        Channel.ChannelShutdownAsync += ChannelOnModelShutdown;
 
         Logger.LogInformation("Opened a new channel for Wolverine endpoint {Endpoint}", this);
     }
 
-    private void ChannelOnModelShutdown(object? sender, ShutdownEventArgs e)
+    private Task ChannelOnModelShutdown(object? sender, ShutdownEventArgs e)
     {
-        if (e.Initiator == ShutdownInitiator.Application) return;
+        if (e.Initiator == ShutdownInitiator.Application) return Task.CompletedTask;
 
         if (e.Exception != null)
         {
@@ -82,16 +86,18 @@ internal abstract class RabbitMqChannelAgent : IDisposable
                 "Unexpected channel shutdown for Rabbit MQ. Wolverine will attempt to restart...");
         }
 
-        EnsureConnected();
+        _ = EnsureConnected();
+        
+        return Task.CompletedTask;
     }
 
-    protected void teardownChannel()
+    protected async Task teardownChannel()
     {
         if (Channel != null)
         {
-            Channel.ModelShutdown -= ChannelOnModelShutdown;
-            Channel.Close();
-            Channel.Abort();
+            Channel.ChannelShutdownAsync -= ChannelOnModelShutdown;
+            await Channel.CloseAsync();
+            await Channel.AbortAsync();
             Channel.Dispose();
         }
 

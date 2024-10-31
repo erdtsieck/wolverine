@@ -7,7 +7,8 @@ public interface ILocalReceiver
     void Enqueue(Envelope envelope);
 }
 
-internal interface ILocalQueue : IReceiver, ILocalReceiver
+public interface ILocalQueue : IReceiver, ILocalReceiver
 {
     int QueueCount { get; }
+    Uri Uri { get; }
 }

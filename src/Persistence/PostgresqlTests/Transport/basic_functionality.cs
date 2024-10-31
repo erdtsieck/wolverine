@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using NSubstitute;
 using Shouldly;
-using TestingSupport;
+using Wolverine.ComplianceTests;
 using Weasel.Postgresql;
 using Wolverine;
 using Wolverine.Persistence.Durability;
@@ -43,7 +43,7 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "transports");
+                opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, schema:"transports", transportSchema:"transports");
                 opts.ListenToPostgresqlQueue("one");
             }).StartAsync();
 

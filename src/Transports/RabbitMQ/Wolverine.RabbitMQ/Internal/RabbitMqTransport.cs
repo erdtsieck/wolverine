@@ -1,4 +1,6 @@
-﻿using JasperFx.Core;
+﻿using System.Diagnostics;
+using JasperFx.Core;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using RabbitMQ.Client;
@@ -9,7 +11,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal;
 
-public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDisposable
+public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsyncDisposable
 {
     public const string ProtocolName = "rabbitmq";
     public const string ResponseEndpointName = "RabbitMqResponses";
@@ -19,11 +21,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
     private ConnectionMonitor? _listenerConnection;
     private ConnectionMonitor? _sendingConnection;
 
-    public RabbitMqTransport() : base(ProtocolName, "Rabbit MQ")
+    public RabbitMqTransport(string protocol) : base(protocol, "Rabbit MQ")
     {
-        ConnectionFactory.AutomaticRecoveryEnabled = true;
-        ConnectionFactory.DispatchConsumersAsync = true;
-
         Queues = new LightweightCache<string, RabbitMqQueue>(name => new RabbitMqQueue(name, this));
         Exchanges = new LightweightCache<string, RabbitMqExchange>(name => new RabbitMqExchange(name, this));
 
@@ -41,14 +40,40 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
         });
     }
 
+    public RabbitMqTransport() : this(ProtocolName)
+    {
+        
+    }
+
+    private void configureDefaults(ConnectionFactory factory)
+    {
+        factory.AutomaticRecoveryEnabled = true;
+        factory.ClientProvidedName ??= "Wolverine";
+    }
+
     public DeadLetterQueue DeadLetterQueue { get; } = new(DeadLetterQueueName);
 
     internal RabbitMqChannelCallback? Callback { get; private set; }
 
-    internal ConnectionMonitor ListeningConnection => _listenerConnection ??= BuildConnection(ConnectionRole.Listening);
-    internal ConnectionMonitor SendingConnection => _sendingConnection ??= BuildConnection(ConnectionRole.Sending);
+    internal ConnectionMonitor ListeningConnection => _listenerConnection ?? throw new InvalidOperationException("The listening connection has not been created yet or is disabled!");
+    internal ConnectionMonitor SendingConnection => _sendingConnection ?? throw new InvalidOperationException("The sending connection has not been created yet or is disabled!");
 
-    public ConnectionFactory ConnectionFactory { get; } = new(){ClientProvidedName = "Wolverine"};
+    
+    public ConnectionFactory? ConnectionFactory { get; private set; }
+
+    internal void ConfigureFactory(Action<ConnectionFactory> configure)
+    {
+        var factory = new ConnectionFactory
+        {
+            ClientProvidedName = "Wolverine"
+        };
+        
+        configure(factory);
+        
+        configureDefaults(factory);
+
+        ConnectionFactory = factory;
+    }
 
     public IList<AmqpTcpEndpoint> AmqpTcpEndpoints { get; } = new List<AmqpTcpEndpoint>();
 
@@ -61,11 +86,12 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
     internal bool UseSenderConnectionOnly { get; set; }
     internal bool UseListenerConnectionOnly { get; set; }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         try
         {
-            _listenerConnection?.SafeDispose();
+            if(_listenerConnection is not null)
+                await _listenerConnection.DisposeAsync();
         }
         catch (ObjectDisposedException)
         {
@@ -74,7 +100,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
         try
         {
-            _sendingConnection?.SafeDispose();
+            if(_sendingConnection is not null)
+                await _sendingConnection.DisposeAsync();
         }
         catch (ObjectDisposedException)
         {
@@ -85,28 +112,51 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
         foreach (var queue in Queues)
         {
-            queue.SafeDispose();
+            await queue.DisposeAsync();
         }
     }
 
-    public override ValueTask ConnectAsync(IWolverineRuntime runtime)
+    public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
         Logger = runtime.LoggerFactory.CreateLogger<RabbitMqTransport>();
         Callback = new RabbitMqChannelCallback(Logger, runtime.DurabilitySettings.Cancellation);
 
-        ConnectionFactory.DispatchConsumersAsync = true;
-
+        ConnectionFactory ??= runtime.Services.GetService<IConnectionFactory>() as ConnectionFactory ??
+                              new ConnectionFactory { HostName = "localhost" };
+        
+        configureDefaults(ConnectionFactory);
+        
         if (_listenerConnection == null && !UseSenderConnectionOnly)
         {
             _listenerConnection = BuildConnection(ConnectionRole.Listening);
+            await _listenerConnection.ConnectAsync();
         }
 
         if (_sendingConnection == null && !UseListenerConnectionOnly)
         {
             _sendingConnection = BuildConnection(ConnectionRole.Sending);
+            await _sendingConnection.ConnectAsync();
         }
+    }
 
-        return ValueTask.CompletedTask;
+    internal async Task<IConnection> CreateConnectionAsync()
+    {
+        // TODO -- consider adding retries on this?
+        if (ConnectionFactory == null)
+            throw new InvalidOperationException("Rabbit MQ transport has not been initialized");
+        
+        using var activity = WolverineTracing.ActivitySource.StartActivity("rabbitmq connect", ActivityKind.Client);
+        
+        activity?.AddTag("server.address", ConnectionFactory.HostName);
+        activity?.AddTag("server.port", ConnectionFactory.Port);
+        activity?.AddTag("messaging.system", "rabbitmq");
+        activity?.AddTag("messaging.operation", "connect");
+        
+        var connection = AmqpTcpEndpoints.Any()
+            ? await ConnectionFactory.CreateConnectionAsync(AmqpTcpEndpoints)
+            : await ConnectionFactory.CreateConnectionAsync();
+
+        return connection;
     }
 
     protected override IEnumerable<RabbitMqEndpoint> endpoints()
@@ -187,7 +237,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
             var dlqExchange = Exchanges[deadLetterQueue.ExchangeName];
             deadLetterQueue.ConfigureExchange?.Invoke(dlqExchange);
 
-            dlqExchange.BindQueue(deadLetterQueue.QueueName, deadLetterQueue.BindingName);
+            dlq.BindExchange(dlqExchange.Name, deadLetterQueue.BindingName);
         }
     }
 
@@ -232,12 +282,19 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IDis
 
     public IEnumerable<RabbitMqBinding> Bindings()
     {
-        return Exchanges.SelectMany(x => x.Bindings());
+        return Queues.SelectMany(x => x.Bindings());
     }
 
     public override IEnumerable<PropertyColumn> DiagnosticColumns()
     {
         yield return new PropertyColumn("Queue Name", "name");
         yield return new PropertyColumn("Message Count", "count", Justify.Right);
+    }
+
+    public Task<IChannel> CreateAdminChannelAsync()
+    {
+        if (_listenerConnection != null) return _listenerConnection.CreateChannelAsync();
+        if (_sendingConnection != null) return _sendingConnection.CreateChannelAsync();
+        throw new InvalidOperationException("Rabbit MQ Transport has not been initialized");
     }
 }

@@ -4,8 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
-using TestingSupport;
-using TestingSupport.Sagas;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Sagas;
 using Weasel.Core;
 using Weasel.SqlServer;
 using Wolverine;
@@ -39,28 +39,36 @@ public class EfCoreSagaHost : ISagaHost
         return _host;
     }
 
-    public Task<T> LoadState<T>(Guid id) where T : class
+    public async Task<T> LoadState<T>(Guid id) where T : Saga
     {
-        var session = _host.Get<SagaDbContext>();
-        return session.FindAsync<T>(id).AsTask();
+        using var scope = _host.Services.CreateScope();
+        
+        var session = scope.ServiceProvider.GetRequiredService<SagaDbContext>();
+        return await session.FindAsync<T>(id);
     }
 
-    public Task<T> LoadState<T>(int id) where T : class
+    public async Task<T> LoadState<T>(int id) where T : Saga
     {
-        var session = _host.Get<SagaDbContext>();
-        return session.FindAsync<T>(id).AsTask();
+        using var scope = _host.Services.CreateScope();
+        
+        var session = scope.ServiceProvider.GetRequiredService<SagaDbContext>();
+        return await session.FindAsync<T>(id);
     }
 
-    public Task<T> LoadState<T>(long id) where T : class
+    public async Task<T> LoadState<T>(long id) where T : Saga
     {
-        var session = _host.Get<SagaDbContext>();
-        return session.FindAsync<T>(id).AsTask();
+        using var scope = _host.Services.CreateScope();
+        
+        var session = scope.ServiceProvider.GetRequiredService<SagaDbContext>();
+        return await session.FindAsync<T>(id);
     }
 
-    public Task<T> LoadState<T>(string id) where T : class
+    public async Task<T> LoadState<T>(string id) where T : Saga
     {
-        var session = _host.Get<SagaDbContext>();
-        return session.FindAsync<T>(id).AsTask();
+        using var scope = _host.Services.CreateScope();
+        
+        var session = scope.ServiceProvider.GetRequiredService<SagaDbContext>();
+        return await session.FindAsync<T>(id);
     }
 
     public async Task Initialize()

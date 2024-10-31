@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 using JasperFx.Core;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
@@ -60,7 +60,7 @@ public class local_integration_specs : IntegrationContext
         agent.CircuitBreaker.ShouldBeNull();
 
         agent
-            .Pipeline.ShouldBeSameAs(runtime.Pipeline);
+            .Pipeline.ShouldBeOfType<HandlerPipeline>().ExecutorFactory.ShouldBeSameAs(runtime);
     }
 
     [Fact]

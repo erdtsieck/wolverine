@@ -1,7 +1,7 @@
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Runtime;
 using Xunit;
@@ -43,7 +43,6 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
     }
 }
 
-[Collection("acceptance")]
 public class PrefixedSendingAndReceivingCompliance : TransportCompliance<PrefixedComplianceFixture>
 {
     [Fact]

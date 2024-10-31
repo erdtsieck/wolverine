@@ -7,7 +7,6 @@ Wolverine comes with two flavors of error handling (so far). First, you can defi
 control over how various exceptions on different message. In addition, Wolverine supports a per-endpoint [circuit breaker](https://martinfowler.com/bliki/CircuitBreaker.html) approach that will temporarily
 pause message processing on a single listening endpoint in the case of a high rate of failures at that endpoint.
 
-
 ## Error Handling Rules
 
 ::: warning
@@ -22,7 +21,7 @@ Error handling rules in Wolverine are defined by three things:
 2. Exception matching
 3. One or more actions (retry the message? discard it? move it to an error queue?)
 
-### What to do on an error?
+## What to do on an error?
 
 | Action               | Description                                                                                                                              |
 |----------------------|------------------------------------------------------------------------------------------------------------------------------------------|
@@ -45,7 +44,7 @@ So what to do in any particular scenario? Here's some initial guidance:
 * If an exception tells you than the system or part of the system itself is completely down, you may opt to pause the message listening altogether
 
 
-### Moving Messages to an Error Queue
+## Moving Messages to an Error Queue
 
 ::: tip
 The actual mechanics of the error or "dead letter queue" vary between messaging transport
@@ -64,11 +63,11 @@ using var host = await Host.CreateDefaultBuilder()
         opts.OnException<TimeoutException>().MoveToErrorQueue();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L107-L116' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_to_error_queue' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L106-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_to_error_queue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
-### Discarding Messages
+## Discarding Messages
 
 If you can detect that an exception means that the message is invalid in your system and could never be processed, just tell Wolverine to discard it:
 
@@ -83,13 +82,13 @@ using var host = await Host.CreateDefaultBuilder()
             .Discard();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L137-L147' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_discard_when_message_is_invalid' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L136-L146' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_discard_when_message_is_invalid' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You have to explicitly discard a message or it will eventually be sent to a dead letter queue when the message has exhausted its configured retries or requeues.
 
 
-### Exponential Backoff
+## Exponential Backoff
 
 ::: tip
 This error handling strategy is effective for slowing down or throttling processing to give a distressed subsystem a chance to recover
@@ -111,7 +110,7 @@ using var host = await Host.CreateDefaultBuilder()
             .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L152-L165' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_exponential_backoff' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L151-L164' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_exponential_backoff' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or through attributes on a single message:
@@ -125,11 +124,11 @@ public class MessageWithBackoff
     // whatever members
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L190-L198' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_exponential_backoff_with_attributes' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L189-L197' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_exponential_backoff_with_attributes' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
-### Pausing Listening on Error Conditions
+## Pausing Listening on Error Conditions
 
 ::: tip
 This feature exists in Wolverine because of the exact scenario described as an example in this section. Wish we'd had Wolverine then...
@@ -154,11 +153,11 @@ using var host = await Host.CreateDefaultBuilder()
             .Requeue().AndPauseProcessing(10.Minutes());
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L121-L132' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pause_when_system_is_unusable' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L120-L131' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pause_when_system_is_unusable' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
-### Scoping
+## Scoping
 
 ::: tip
 To be clear, the error rules are "fall through," meaning that the rules are evaluated in order.
@@ -191,7 +190,7 @@ public class AttributeUsingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L254-L269' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_error_handling_with_attributes' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L253-L268' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_error_handling_with_attributes' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You can also use the fluent interface approach on a specific message type if you put a method with the signature `public static void Configure(HandlerChain chain)`
@@ -222,7 +221,7 @@ public class MyErrorCausingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L219-L243' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configure_error_handling_per_chain_with_configure' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L218-L242' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configure_error_handling_per_chain_with_configure' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To specify global error handling rules, use the fluent interface directly on `WolverineOptions.Handlers` as shown below:
@@ -243,7 +242,7 @@ using var host = await Host.CreateDefaultBuilder()
             .ScheduleRetry(5.Seconds());
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L31-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_globalerrorhandlingconfiguration' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L30-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_globalerrorhandlingconfiguration' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 TODO -- link to chain policies, after that exists:)
@@ -259,7 +258,7 @@ a sample policy that applies an error handling policy based on `SqlException` er
 // message handlers
 public class ErrorHandlingPolicy : IHandlerPolicy
 {
-    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IContainer container)
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container)
     {
         var matchingChains = chains
             .Where(x => x.MessageType.IsInNamespace("MyApp.Messages"));
@@ -268,10 +267,10 @@ public class ErrorHandlingPolicy : IHandlerPolicy
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L201-L217' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_errorhandlingpolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L200-L216' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_errorhandlingpolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-### Exception Filtering
+## Exception Filtering
 
 ::: tip
 While many of the examples in this page have shown simple policies based on the type `SqlException`, in real life
@@ -285,7 +284,7 @@ filters, inner exception tests, and compound filters:
 sample_filtering_by_exception_type
 
 
-### Custom Actions
+## Custom Actions
 
 ::: tip
 For the sake of granular error handling, it's recommended that your
@@ -318,7 +317,7 @@ theReceiver = await Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/ErrorHandling/custom_error_action_raises_new_message.cs#L30-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inline_exception_handling_action' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/ErrorHandling/custom_error_action_raises_new_message.cs#L31-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inline_exception_handling_action' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Optionally, you can implement a new type to handle this same custom logic by
@@ -345,7 +344,7 @@ public class ShippingOrderFailurePolicy : UserDefinedContinuation
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/ErrorHandling/custom_error_action_raises_new_message.cs#L74-L94' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shippingorderfailurepolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/ErrorHandling/custom_error_action_raises_new_message.cs#L75-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shippingorderfailurepolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and register that secondary action like this:
@@ -363,7 +362,7 @@ theReceiver = await Host.CreateDefaultBuilder()
             .Discard().And<ShippingOrderFailurePolicy>();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/ErrorHandling/custom_error_action_raises_new_message.cs#L114-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_custom_user_continuation_policy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/ErrorHandling/custom_error_action_raises_new_message.cs#L115-L127' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_custom_user_continuation_policy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -408,7 +407,7 @@ using var host = await Host.CreateDefaultBuilder()
                 cb.FailurePercentageThreshold = 10;
 
                 // Optional allow list
-                cb.Include<SqlException>(e => e.Message.Contains("Failure"));
+                cb.Include<NpgsqlException>(e => e.Message.Contains("Failure"));
                 cb.Include<SocketException>();
 
                 // Optional ignore list
@@ -416,7 +415,7 @@ using var host = await Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/CircuitBreakingTests/Samples.cs#L15-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_circuit_breaker_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/CircuitBreakingTests/Samples.cs#L16-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_circuit_breaker_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that the exception includes and excludes are optional. If there are no explicit `Include()`

@@ -33,6 +33,8 @@ public interface IEndpointCollection : IAsyncDisposable
 
     Task StartListenerAsync(Endpoint endpoint, CancellationToken cancellationToken);
     Task StopListenerAsync(Endpoint endpoint, CancellationToken cancellationToken);
+
+    IListenerCircuit FindListenerCircuit(Uri address);
 }
 
 public class EndpointCollection : IEndpointCollection
@@ -60,7 +62,14 @@ public class EndpointCollection : IEndpointCollection
             var sender = kv.Value;
             if (sender is IAsyncDisposable ad)
             {
-                await ad.DisposeAsync();
+                try
+                {
+                    await ad.DisposeAsync();
+                }
+                catch (Exception)
+                {
+                    // Don't want this being thrown
+                }
             }
             else if (sender is IDisposable d)
             {
@@ -219,6 +228,17 @@ public class EndpointCollection : IEndpointCollection
         {
             await agent.StopAndDrainAsync();
         }
+    }
+
+    public IListenerCircuit FindListenerCircuit(Uri address)
+    {
+        if (address.Scheme == TransportConstants.Local)
+        {
+            return (IListenerCircuit)GetOrBuildSendingAgent(address);
+        }
+
+        return (FindListeningAgent(address) ??
+                FindListeningAgent(TransportConstants.Durable))!;
     }
 
     public async Task StartListenerAsync(Endpoint endpoint, CancellationToken cancellationToken)

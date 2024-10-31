@@ -1,14 +1,14 @@
 using IntegrationTests;
 using JasperFx.Core;
 using Marten;
-using TestingSupport;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine;
 using Wolverine.Marten;
+using Wolverine.Util;
 
 namespace MartenTests;
 
-[Collection("marten")]
 public class DurableTcpTransportFixture : TransportComplianceFixture, IAsyncLifetime
 {
     public DurableTcpTransportFixture() : base($"tcp://localhost:{PortFinder.GetAvailablePort()}/incoming".ToUri())
@@ -53,5 +53,4 @@ public class DurableTcpTransportFixture : TransportComplianceFixture, IAsyncLife
     }
 }
 
-[Collection("marten")]
 public class DurableTcpTransportCompliance : TransportCompliance<DurableTcpTransportFixture>;

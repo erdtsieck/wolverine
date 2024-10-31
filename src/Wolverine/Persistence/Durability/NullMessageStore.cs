@@ -17,6 +17,11 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         return Task.CompletedTask;
     }
 
+    public Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes)
+    {
+        return Task.CompletedTask;
+    }
+
     public IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime)
     {
         return null;
@@ -157,6 +162,11 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         return Task.CompletedTask;
     }
 
+    public Task ReleaseAllOwnershipAsync(int ownerId)
+    {
+        return Task.CompletedTask;
+    }
+
     public Task CheckConnectivityAsync(CancellationToken token)
     {
         return Task.CompletedTask;
@@ -239,7 +249,7 @@ internal class NullNodeAgentPersistence : INodeAgentPersistence
         return Task.FromResult(0);
     }
 
-    public Task DeleteAsync(Guid nodeId)
+    public Task DeleteAsync(Guid nodeId, int assignedNodeNumber)
     {
         return Task.CompletedTask;
     }
@@ -269,11 +279,6 @@ internal class NullNodeAgentPersistence : INodeAgentPersistence
         return Task.FromResult(default(Guid?));
     }
 
-    public Task<Uri?> FindLeaderControlUriAsync(Guid selfId)
-    {
-        return Task.FromResult(default(Uri?));
-    }
-
     public Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken)
     {
         return Task.FromResult(default(WolverineNode?));
@@ -282,16 +287,6 @@ internal class NullNodeAgentPersistence : INodeAgentPersistence
     public Task MarkHealthCheckAsync(Guid nodeId)
     {
         return Task.CompletedTask;
-    }
-
-    public Task<IReadOnlyList<Uri>> LoadAllOtherNodeControlUrisAsync(Guid selfId)
-    {
-        return Task.FromResult((IReadOnlyList<Uri>)Array.Empty<Uri>());
-    }
-
-    public Task<IReadOnlyList<WolverineNode>> LoadAllStaleNodesAsync(DateTimeOffset staleTime, CancellationToken cancellation)
-    {
-        return Task.FromResult((IReadOnlyList<WolverineNode>)Array.Empty<WolverineNode>());
     }
 
     public Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)
@@ -312,5 +307,20 @@ internal class NullNodeAgentPersistence : INodeAgentPersistence
     public Task<IReadOnlyList<NodeRecord>> FetchRecentRecordsAsync(int count)
     {
         return Task.FromResult((IReadOnlyList<NodeRecord>)Array.Empty<NodeRecord>());
+    }
+
+    public bool HasLeadershipLock()
+    {
+        return false;
+    }
+
+    public Task<bool> TryAttainLeadershipLockAsync(CancellationToken token)
+    {
+        return Task.FromResult(false);
+    }
+
+    public Task ReleaseLeadershipLockAsync()
+    {
+        return Task.CompletedTask;
     }
 }

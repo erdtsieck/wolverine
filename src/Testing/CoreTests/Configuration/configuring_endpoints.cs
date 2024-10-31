@@ -1,7 +1,7 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
-using TestingSupport;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
@@ -9,6 +9,7 @@ using Wolverine.Transports;
 using Wolverine.Transports.Local;
 using Wolverine.Transports.Stub;
 using Wolverine.Transports.Tcp;
+using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Configuration;

@@ -66,6 +66,8 @@ public class Bug_865_returning_IResult_using_Auto_codegen
     
         });
         
+        builder.Services.AddWolverineHttp();
+        
         // This is using Alba, which uses WebApplicationFactory under the covers
         await using var host = await AlbaHost.For(builder, app =>
         {
@@ -118,7 +120,7 @@ public static class CounterEndpoint
     #region sample_using_Document_required
 
     [WolverinePost("/api/tenants/{tenant}/counters/{id}/inc2")]
-    public static IMartenOp Increment2([Document(Required = true)] Counter counter)
+    public static IMartenOp Increment2([Document] Counter counter)
     {
         counter = counter with { Count = counter.Count + 1 };
         return MartenOps.Store(counter);

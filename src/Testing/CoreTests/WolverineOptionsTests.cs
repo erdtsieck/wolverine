@@ -1,11 +1,10 @@
 ﻿using JasperFx.Core;
-using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
 using Oakton.Resources;
-using TestingSupport;
-using TestingSupport.Fakes;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Fakes;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
@@ -66,15 +65,16 @@ public class WolverineOptionsTests
     [Fact]
     public void sets_up_the_container_with_services()
     {
-        var registry = new WolverineOptions();
-        registry.DisableConventionalDiscovery();
-        registry.Services.For<IFoo>().Use<Foo>();
-        registry.Services.AddTransient<IFakeStore, FakeStore>();
-
-        using (var runtime = WolverineHost.For(registry))
+        using var runtime = WolverineHost.For(registry =>
         {
-            runtime.Get<IContainer>().DefaultRegistrationIs<IFoo, Foo>();
-        }
+            registry.DisableConventionalDiscovery();
+            registry.Services.AddScoped<IFoo, Foo>();
+            registry.Services.AddSingleton<Wolverine.ComplianceTests.Fakes.Tracking>();
+            registry.Services.AddTransient<IFakeStore, FakeStore>();
+        });
+
+        var services = runtime.Get<IServiceContainer>();
+        services.DefaultFor<IFoo>().ImplementationType.ShouldBe(typeof(Foo));
     }
 
     [Fact]
@@ -185,15 +185,44 @@ public class WolverineOptionsTests
             .ShouldBeSameAs(transport);
     }
 
+    [Fact]
+    public void find_named_transport()
+    {
+        var one = new BrokerName("one");
+        var two = new BrokerName("two");
+
+        var options = new WolverineOptions();
+
+        var main = options.Transports.GetOrCreate<FakeTransport>();
+        main.Protocol.ShouldBe("fake");
+
+        var transport1 = options.Transports.GetOrCreate<FakeTransport>(one);
+        transport1.Protocol.ShouldBe("one");
+        transport1.ShouldBeSameAs(options.Transports.GetOrCreate<FakeTransport>(one));
+
+        var transport2 = options.Transports.GetOrCreate<FakeTransport>(two);
+        transport2.ShouldNotBeSameAs(main);
+        transport2.ShouldNotBeSameAs(transport1);
+    }
+
     public interface IFoo;
 
     public class Foo : IFoo;
 
     public class FakeTransport : ITransport
     {
+        public FakeTransport(string protocol)
+        {
+            Protocol = protocol;
+        }
+
+        public FakeTransport() : this("fake")
+        {
+        }
+
         public string Name => "Fake";
 
-        public string Protocol => "fake";
+        public string Protocol { get; }
 
 
         public Endpoint ReplyEndpoint()
@@ -253,3 +282,4 @@ public class WolverineOptionsTests
         }
     }
 }
+

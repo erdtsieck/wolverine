@@ -1,7 +1,7 @@
 using IntegrationTests;
 using JasperFx.Core;
 using Shouldly;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Configuration;
 using Wolverine.Postgresql;
 using Wolverine.Tracking;
@@ -18,7 +18,7 @@ public class PostgresqlTransportDurableFixture : TransportComplianceFixture, IAs
     {
         await SenderIs(opts =>
         {
-            opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "durable")
+            opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "durable", transportSchema:"durable")
                 .AutoProvision().AutoPurgeOnStartup();
 
             opts.ListenToPostgresqlQueue("sender");
@@ -27,7 +27,7 @@ public class PostgresqlTransportDurableFixture : TransportComplianceFixture, IAs
 
         await ReceiverIs(opts =>
         {
-            opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "durable");
+            opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "durable", transportSchema:"durable");
 
             opts.ListenToPostgresqlQueue("receiver").UseDurableInbox();
         });

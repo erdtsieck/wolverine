@@ -1,9 +1,10 @@
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using TestingSupport.Compliance;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Compliance;
+using Wolverine.RabbitMQ.Tests.ConventionalRouting;
 
 namespace Wolverine.RabbitMQ.Tests;
 
@@ -34,7 +35,7 @@ public class Samples
 
         #region sample_sending_topic_routed_message
 
-        var publisher = host.Services.GetRequiredService<IMessageBus>();
+        var publisher = host.MessageBus();
         await publisher.SendAsync(new Message1());
 
         #endregion
@@ -260,25 +261,6 @@ public class Samples
         #endregion
     }
 
-    #region sample_RabbitMQ_configuration_in_wolverine_extension
-
-    public class MyModuleExtension : IWolverineExtension
-    {
-        public void Configure(WolverineOptions options)
-        {
-            options.ConfigureRabbitMq()
-                // Make any Rabbit Mq configuration or declare
-                // additional Rabbit Mq options through the normal
-                // syntax
-                .DeclareExchange("my-module")
-                .DeclareQueue("my-queue");
-
-
-        }
-    }
-
-    #endregion
-
     public static async Task autopurge()
     {
         #region sample_autopurge_rabbitmq
@@ -374,16 +356,12 @@ public class Samples
                     .CustomizeDeadLetterQueueing(new DeadLetterQueue("error-queue"))
 
                     // or conventionally
-                    .ConfigureListeners(l =>
-                    {
-                        l.DeadLetterQueueing(new DeadLetterQueue($"{l.QueueName}-errors"));
-                    });
+                    .ConfigureListeners(l => { l.DeadLetterQueueing(new DeadLetterQueue($"{l.QueueName}-errors")); });
 
 
                 // Use a different dead letter queue for this specific queue
                 opts.ListenToRabbitQueue("incoming")
                     .DeadLetterQueueing(new DeadLetterQueue("incoming-errors"));
-
             }).StartAsync();
 
         #endregion
@@ -398,19 +376,20 @@ public class Samples
             {
                 // Use a different default deal letter queue name
                 opts.UseRabbitMq()
-                    .CustomizeDeadLetterQueueing(new DeadLetterQueue("error-queue", DeadLetterQueueMode.InteropFriendly))
+                    .CustomizeDeadLetterQueueing(
+                        new DeadLetterQueue("error-queue", DeadLetterQueueMode.InteropFriendly))
 
                     // or conventionally
                     .ConfigureListeners(l =>
                     {
-                        l.DeadLetterQueueing(new DeadLetterQueue($"{l.QueueName}-errors", DeadLetterQueueMode.InteropFriendly));
+                        l.DeadLetterQueueing(new DeadLetterQueue($"{l.QueueName}-errors",
+                            DeadLetterQueueMode.InteropFriendly));
                     });
 
 
                 // Use a different dead letter queue for this specific queue
                 opts.ListenToRabbitQueue("incoming")
                     .DeadLetterQueueing(new DeadLetterQueue("incoming-errors", DeadLetterQueueMode.InteropFriendly));
-
             }).StartAsync();
 
         #endregion
@@ -437,7 +416,6 @@ public class Samples
 
                 // Disable the dead letter queue for this specific queue
                 opts.ListenToRabbitQueue("incoming").DisableDeadLetterQueueing();
-
             }).StartAsync();
 
         #endregion
@@ -447,19 +425,22 @@ public class Samples
     {
         #region sample_setting_default_message_type_with_rabbit
 
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine((context, opts) =>
-            {
-                var rabbitMqConnectionString = context.Configuration.GetConnectionString("rabbit");
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            var rabbitMqConnectionString = builder.Configuration.GetConnectionString("rabbit");
 
-                opts.UseRabbitMq(rabbitMqConnectionString);
+            opts.UseRabbitMq(rabbitMqConnectionString);
 
-                opts.ListenToRabbitQueue("emails")
-                    // Tell Wolverine to assume that all messages
-                    // received at this queue are the SendEmail
-                    // message type
-                    .DefaultIncomingMessage<SendEmail>();
-            }).StartAsync();
+            opts.ListenToRabbitQueue("emails")
+                // Tell Wolverine to assume that all messages
+                // received at this queue are the SendEmail
+                // message type
+                .DefaultIncomingMessage<SendEmail>();
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
 
         #endregion
     }
@@ -468,22 +449,26 @@ public class Samples
     {
         #region sample_registering_custom_rabbit_mq_envelope_mapper
 
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine((context, opts) =>
-            {
-                var rabbitMqConnectionString = context.Configuration.GetConnectionString("rabbit");
+        var builder = Host.CreateApplicationBuilder();
 
-                opts.UseRabbitMq(rabbitMqConnectionString);
+        builder.UseWolverine(opts =>
+        {
+            var rabbitMqConnectionString = builder.Configuration.GetConnectionString("rabbit");
 
-                opts.ListenToRabbitQueue("emails")
-                    // Apply your custom interoperability strategy here
-                    .UseInterop(new SpecialMapper())
+            opts.UseRabbitMq(rabbitMqConnectionString);
 
-                    // You may still want to define the default incoming
-                    // message as the message type name may not be sent
-                    // by the upstream system
-                    .DefaultIncomingMessage<SendEmail>();
-            }).StartAsync();
+            opts.ListenToRabbitQueue("emails")
+                // Apply your custom interoperability strategy here
+                .UseInterop(new SpecialMapper())
+
+                // You may still want to define the default incoming
+                // message as the message type name may not be sent
+                // by the upstream system
+                .DefaultIncomingMessage<SendEmail>();
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
 
         #endregion
     }
@@ -492,23 +477,87 @@ public class Samples
     {
         #region sample_rabbit_topic_rules
 
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine((context, opts) =>
-            {
-                opts.UseRabbitMq();
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            opts.UseRabbitMq();
 
-                // Publish any message that implements ITenantMessage to
-                // a Rabbit MQ "Topic" exchange named "tenant.messages"
-                opts.PublishMessagesToRabbitMqExchange<ITenantMessage>("tenant.messages",m => $"{m.GetType().Name.ToLower()}/{m.TenantId}")
+            // Publish any message that implements ITenantMessage to
+            // a Rabbit MQ "Topic" exchange named "tenant.messages"
+            opts.PublishMessagesToRabbitMqExchange<ITenantMessage>("tenant.messages",
+                    m => $"{m.GetType().Name.ToLower()}/{m.TenantId}")
 
-                    // Specify or configure sending through Wolverine for all
-                    // messages through this Exchange
-                    .BufferedInMemory();
-            })
-            .StartAsync();
+                // Specify or configure sending through Wolverine for all
+                // messages through this Exchange
+                .BufferedInMemory();
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
 
         #endregion
     }
+
+    public static void configure_routing_conventions()
+    {
+        #region sample_conventional_routing_exchange_conventions
+        var sender = WolverineHost.For(opts =>
+        {
+            opts.UseRabbitMq()
+                .UseConventionalRouting(conventions =>
+                {
+                    conventions.ExchangeNameForSending(type => type.Name + "_custom");
+                    conventions.ConfigureSending((x, c) =>
+                    {
+                        // Route messages via headers exchange whilst taking advantage of conventional naming
+                        if (c.MessageType == typeof(HeadersMessage))
+                        {
+                            x.ExchangeType(ExchangeType.Headers);
+                        }
+                    });
+                });
+        });
+        
+        var receiver = WolverineHost.For(opts =>
+        {
+            opts.UseRabbitMq()
+                .UseConventionalRouting(conventions =>
+                {
+                    conventions.ExchangeNameForSending(type => type.Name + "_custom");
+                    conventions.ConfigureListeners((x, c) =>
+                    {
+                        if (c.MessageType == typeof(HeadersMessage))
+                        {
+                            // Bind our queue based on the headers tenant-id
+                            x.BindToExchange<HeadersMessage>(ExchangeType.Headers,
+                                arguments: new Dictionary<string, object>()
+                                {
+                                    { "tenant-id", "tenant-id" }
+                                });
+                        }
+                    });
+                });
+        });
+        #endregion
+      
+    }
+
+    #region sample_RabbitMQ_configuration_in_wolverine_extension
+
+    public class MyModuleExtension : IWolverineExtension
+    {
+        public void Configure(WolverineOptions options)
+        {
+            options.ConfigureRabbitMq()
+                // Make any Rabbit Mq configuration or declare
+                // additional Rabbit Mq options through the normal
+                // syntax
+                .DeclareExchange("my-module")
+                .DeclareQueue("my-queue");
+        }
+    }
+
+    #endregion
 }
 
 #region sample_rabbit_itenantmessage
@@ -520,5 +569,49 @@ public interface ITenantMessage
 
 #endregion
 
+public record SendEmail;
 
-public record SendEmail();
+public static class AdditionalBrokers
+{
+    public static async Task configure()
+    {
+        #region sample_configure_additional_rabbit_mq_broker
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            // Connect to the "main" Rabbit MQ broker for this application
+            opts.UseRabbitMq(builder.Configuration.GetConnectionString("internal-rabbit-mq"));
+
+            // Listen for incoming messages on the main broker at the queue named "incoming"
+            opts.ListenToRabbitQueue("incoming");
+
+            // Let's say there's one Rabbit MQ broker for internal communications
+            // and a second one for external communications
+            var external = new BrokerName("external");
+
+            // BUT! Let's also use a second broker
+            opts.AddNamedRabbitMqBroker(external, factory =>
+            {
+                factory.Uri = new Uri(builder.Configuration.GetConnectionString("external-rabbit-mq"));
+            });
+
+            // Listen to a queue on the named, secondary broker
+            opts.ListenToRabbitQueueOnNamedBroker(external, "incoming");
+            
+            // Other options for publishing messages to the named broker
+            opts.PublishAllMessages().ToRabbitExchangeOnNamedBroker(external, "exchange1");
+
+            opts.PublishAllMessages().ToRabbitQueueOnNamedBroker(external, "outgoing");
+
+            opts.PublishAllMessages().ToRabbitRoutingKeyOnNamedBroker(external, "exchange1", "key2");
+
+            opts.PublishAllMessages().ToRabbitTopicsOnNamedBroker(external, "topics");
+        });
+
+        #endregion
+
+        var host = builder.Build();
+        await host.StartAsync();
+    }
+}
