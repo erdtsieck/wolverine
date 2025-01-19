@@ -18,6 +18,7 @@ using Wolverine.Codegen;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Metadata;
+using Wolverine.Http.Policies;
 using Wolverine.Runtime;
 using ServiceContainer = Wolverine.Runtime.ServiceContainer;
 
@@ -60,6 +61,12 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     private readonly List<QuerystringVariable> _querystringVariables = [];
 
     public string OperationId { get; set; }
+    
+    /// <summary>
+    /// This may be overridden by some IResponseAware policies in place of the first
+    /// create variable of the method call
+    /// </summary>
+    public Variable? ResourceVariable { get; set; }
 
     // Make the assumption that the route argument has to match the parameter name
     private GeneratedType? _generatedType;
@@ -114,7 +121,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         applyAttributesAndConfigureMethods(_parent.Rules, _parent.Container);
 
         // Add Before/After methods from the current handler
-        applyImpliedMiddlewareFromHandlers(_parent.Rules);
+        ApplyImpliedMiddlewareFromHandlers(_parent.Rules);
 
         foreach (var call in Middleware.OfType<MethodCall>().ToArray())
         {
@@ -157,7 +164,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public IEnumerable<string> HttpMethods => _httpMethods;
 
-    public Type? ResourceType { get; }
+    public Type? ResourceType { get; private set; }
 
     internal void MapToRoute(string method, string url, int? order = null, string? displayName = null)
     {
@@ -266,6 +273,11 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         return HasRequestType ? RequestType : null;
     }
 
+    public override Frame[] AddStopConditionIfNull(Variable variable)
+    {
+        return [new SetStatusCodeAndReturnIfEntityIsNullFrame(variable)];
+    }
+
     public override string ToString()
     {
         return _fileName!;
@@ -317,6 +329,14 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             if (parameter.ParameterType == typeof(string))
             {
                 variable = new ReadStringQueryStringValue(key).Variable;
+                variable.Name = key;
+                _querystringVariables.Add(variable);
+            }
+
+            if (parameter.ParameterType == typeof(string[]))
+            {
+                variable = new ParsedArrayQueryStringValue(parameter).Variable;
+                variable.Name = key;
                 _querystringVariables.Add(variable);
             }
 
@@ -330,10 +350,18 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                     _querystringVariables.Add(variable);
                 }
             }
+            
+            if (parameter.ParameterType.IsArray && RouteParameterStrategy.CanParse(parameter.ParameterType.GetElementType()))
+            {
+                variable = new ParsedArrayQueryStringValue(parameter).Variable;
+                variable.Name = key;
+                _querystringVariables.Add(variable);
+            }
 
             if (ParsedCollectionQueryStringValue.CanParse(parameter.ParameterType))
             {
                 variable = new ParsedCollectionQueryStringValue(parameter).Variable;
+                variable.Name = key;
                 _querystringVariables.Add(variable);
             }
 
@@ -389,14 +417,14 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public bool FindRouteVariable(Type variableType, string routeOrParameterName, [NotNullWhen(true)]out Variable? variable)
     {
         var matched =
-            _routeVariables.FirstOrDefault(x => x.VariableType == variableType && x.Usage == routeOrParameterName);
+            _routeVariables.FirstOrDefault(x => x.VariableType == variableType && x.Usage.EqualsIgnoreCase(routeOrParameterName));
         if (matched is not null)
         {
             variable = matched;
             return true;
         }
 
-        var matches = RoutePattern!.Parameters.Any(x => x.Name == routeOrParameterName);
+        var matches = RoutePattern!.Parameters.Any(x => x.Name.EqualsIgnoreCase(routeOrParameterName));
         if (matches)
         {
             if (variableType == typeof(string))

@@ -65,7 +65,10 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Best Practices', link: '/tutorials/best-practices'},
                         {text: 'Ping/Pong Messaging', link: '/tutorials/ping-pong'},
                         {text: 'Custom Middleware', link: '/tutorials/middleware'},
-                        {text: 'Wolverine and Serverless', link: '/tutorials/serverless'}
+                        {text: 'Wolverine and Serverless', link: '/tutorials/serverless'},
+                        {text: 'Wolverine for MediatR Users', link: '/tutorials/from-mediatr'},
+                        {text: 'Vertical Slice Architecture', link: '/tutorials/vertical-slice-architecture'},
+                        {text: 'Modular Monoliths', link: '/tutorials/modular-monolith'}
                     ]
                 },
                 {
@@ -101,7 +104,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Execution Timeouts', link: '/guide/handlers/timeout'},
                                 {text: 'Fluent Validation Middleware', link: '/guide/handlers/fluent-validation'},
                                 {text: 'Sticky Handler to Endpoint Assignments', link: '/guide/handlers/sticky'},
-                                {text: 'Message Batching', link: '/guide/handlers/batching'}
+                                {text: 'Message Batching', link: '/guide/handlers/batching'},
+                                {text: 'Persistence Helpers', link: '/guide/handlers/persistence'}
                             ]
                         },
                     ]
@@ -112,7 +116,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                     items: [
                         {text: 'Introduction to Messaging', link: '/guide/messaging/introduction'},
                         {text: 'Sending Messages', link: '/guide/messaging/message-bus'},
-                        {text: 'Subscriptions & Message Routing', link: '/guide/messaging/subscriptions'},
+                        {text: 'Message Routing', link: '/guide/messaging/subscriptions'},
                         {text: 'Listening Endpoints', link: '/guide/messaging/listeners'},
                         {
                             text: 'Transports',
@@ -127,7 +131,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                         {text: 'Queue, Topic, and Binding Management', link:'/guide/messaging/transports/rabbitmq/object-management'},
                                         {text: 'Topics', link:'/guide/messaging/transports/rabbitmq/topics'},
                                         {text: 'Interoperability', link:'/guide/messaging/transports/rabbitmq/interoperability'},
-                                        {text: 'Connecting to Multiple Brokers', link: '/guide/messaging/transports/rabbitmq/multiple-brokers'}
+                                        {text: 'Connecting to Multiple Brokers', link: '/guide/messaging/transports/rabbitmq/multiple-brokers'},
+                                        {text: 'Multi-Tenancy', link: '/guide/messaging/transports/rabbitmq/multi-tenancy'}
                                     ]},
                                 {text: 'Azure Service Bus', link: '/guide/messaging/transports/azureservicebus/', items:[
                                         {text: 'Publishing', link:'/guide/messaging/transports/azureservicebus/publishing'},
@@ -138,7 +143,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                         {text: 'Topics and Subscriptions', link:'/guide/messaging/transports/azureservicebus/topics'},
                                         {text: 'Interoperability', link:'/guide/messaging/transports/azureservicebus/interoperability'},
                                         {text: 'Session Identifiers and FIFO Queues', link: '/guide/messaging/transports/azureservicebus/session-identifiers'},
-                                        {text: 'Scheduled Delivery', link: '/guide/messaging/transports/azureservicebus/scheduled'}
+                                        {text: 'Scheduled Delivery', link: '/guide/messaging/transports/azureservicebus/scheduled'},
+                                        {text: 'Multi-Tenancy', link: '/guide/messaging/transports/azureservicebus/multi-tenancy'}
                                     ]},
                                 {text: 'Amazon SQS', link: '/guide/messaging/transports/sqs/', items:[
                                         {text: 'Publishing', link:'/guide/messaging/transports/sqs/publishing'},
@@ -156,10 +162,12 @@ const config: UserConfig<DefaultTheme.Config> = {
                                         {text: 'Conventional Routing', link:'/guide/messaging/transports/gcp-pubsub/conventional-routing'},
                                         {text: 'Interoperability', link:'/guide/messaging/transports/gcp-pubsub/interoperability'}
                                     ]},
+                                {text: 'Apache Pulsar', link: '/guide/messaging/transports/pulsar'},
                                 {text: 'Sql Server', link: '/guide/messaging/transports/sqlserver'},
                                 {text: 'PostgreSQL', link: '/guide/messaging/transports/postgresql'},
                                 {text: 'MQTT', link: '/guide/messaging/transports/mqtt'},
-                                {text: 'Kafka', link: '/guide/messaging/transports/kafka'}
+                                {text: 'Kafka', link: '/guide/messaging/transports/kafka'},
+                                {text: 'External Database Tables', link: '/guide/messaging/transports/external-tables'}
                             ]
                         },
                         {text: 'Endpoint Specific Operations', link: '/guide/messaging/endpoint-operations'},

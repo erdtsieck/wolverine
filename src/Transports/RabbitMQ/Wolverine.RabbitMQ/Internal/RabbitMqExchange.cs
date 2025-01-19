@@ -67,8 +67,7 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 
         if (_parent.AutoProvision)
         {
-            using var model = await _parent.CreateAdminChannelAsync();
-            await DeclareAsync(model, logger);
+            await _parent.WithAdminChannelAsync(model => DeclareAsync(model, logger));
         }
 
         _initialized = true;
@@ -91,11 +90,6 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
             return;
         }
 
-        if (HasDeclared)
-        {
-            return;
-        }
-
         var exchangeTypeName = ExchangeType.ToString().ToLower();
         await channel.ExchangeDeclareAsync(DeclaredName, exchangeTypeName, IsDurable, AutoDelete, Arguments);
         logger.LogInformation(
@@ -107,11 +101,10 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 
     public override async ValueTask<bool> CheckAsync()
     {
-        using var channel = await _parent.CreateAdminChannelAsync();
         var exchangeName = Name.ToLower();
         try
         {
-            await channel.ExchangeDeclarePassiveAsync(exchangeName);
+            await _parent.WithAdminChannelAsync(channel => channel.ExchangeDeclarePassiveAsync(exchangeName));
             return true;
         }
         catch (Exception)
@@ -122,20 +115,22 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 
     public override async ValueTask TeardownAsync(ILogger logger)
     {
-        using var channel = await _parent.CreateAdminChannelAsync();
-        if (DeclaredName == string.Empty)
+        await _parent.WithAdminChannelAsync(async channel =>
         {
-        }
-        else
-        {
-            await channel.ExchangeDeleteAsync(DeclaredName);
-        }
+            if (DeclaredName == string.Empty)
+            {
+            }
+            else
+            {
+                await channel.ExchangeDeleteAsync(DeclaredName);
+            }
+        });
+
     }
 
     public override async ValueTask SetupAsync(ILogger logger)
     {
-        using var channel = await _parent.CreateAdminChannelAsync();
-        await DeclareAsync(channel, logger);
+        await _parent.WithAdminChannelAsync(channel => DeclareAsync(channel, logger));
     }
 }
 

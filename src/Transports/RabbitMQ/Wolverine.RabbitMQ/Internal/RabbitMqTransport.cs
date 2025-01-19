@@ -8,6 +8,7 @@ using Spectre.Console;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 
 namespace Wolverine.RabbitMQ.Internal;
 
@@ -45,6 +46,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
         
     }
 
+    internal LightweightCache<string, RabbitMqTenant> Tenants { get; } = new();
+
     private void configureDefaults(ConnectionFactory factory)
     {
         factory.AutomaticRecoveryEnabled = true;
@@ -58,7 +61,6 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     internal ConnectionMonitor ListeningConnection => _listenerConnection ?? throw new InvalidOperationException("The listening connection has not been created yet or is disabled!");
     internal ConnectionMonitor SendingConnection => _sendingConnection ?? throw new InvalidOperationException("The sending connection has not been created yet or is disabled!");
 
-    
     public ConnectionFactory? ConnectionFactory { get; private set; }
 
     internal void ConfigureFactory(Action<ConnectionFactory> configure)
@@ -114,6 +116,11 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
         {
             await queue.DisposeAsync();
         }
+
+        foreach (var tenant in Tenants)
+        {
+            await tenant.Transport.DisposeAsync();
+        }
     }
 
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
@@ -136,6 +143,11 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
         {
             _sendingConnection = BuildConnection(ConnectionRole.Sending);
             await _sendingConnection.ConnectAsync();
+        }
+
+        foreach (var tenant in Tenants)
+        {
+            await tenant.ConnectAsync(this, runtime);
         }
     }
 
@@ -291,10 +303,70 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
         yield return new PropertyColumn("Message Count", "count", Justify.Right);
     }
 
-    public Task<IChannel> CreateAdminChannelAsync()
+    private Task<IChannel> createAdminChannelAsync()
     {
         if (_listenerConnection != null) return _listenerConnection.CreateChannelAsync();
         if (_sendingConnection != null) return _sendingConnection.CreateChannelAsync();
         throw new InvalidOperationException("Rabbit MQ Transport has not been initialized");
+    }
+
+    public async Task WithAdminChannelAsync(Func<IChannel, Task> operation)
+    {
+        await using var channel = await createAdminChannelAsync();
+        await operation(channel);
+        await channel.CloseAsync();
+
+        foreach (var tenant in Tenants)
+        {
+            await tenant.Transport.WithAdminChannelAsync(operation);
+        }
+    }
+
+    public ISender BuildSender(RabbitMqEndpoint endpoint, RoutingMode routingType, IWolverineRuntime runtime)
+    {
+        var rabbitMqSender = new RabbitMqSender(endpoint, this, routingType, runtime);
+        
+        if (Tenants.Any() && endpoint.TenancyBehavior == TenancyBehavior.TenantAware)
+        {
+            var tenantedSender = new TenantedSender(endpoint.Uri, TenantedIdBehavior, rabbitMqSender);
+            foreach (var tenant in Tenants)
+            {
+                var sender = new RabbitMqSender(endpoint, tenant.Transport, routingType, runtime);
+                tenantedSender.RegisterSender(tenant.TenantId, sender);
+            }
+
+            return tenantedSender;
+        }
+        
+        return rabbitMqSender;
+    }
+
+    public async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver, RabbitMqQueue queue)
+    {
+        var listener = await buildListener(runtime, receiver, queue);
+        if (Tenants.Any() && queue.TenancyBehavior == TenancyBehavior.TenantAware)
+        {
+            var compound = new CompoundListener(queue.Uri);
+            compound.Inner.Add(listener);
+
+            foreach (var tenant in Tenants)
+            {
+                var rule = new TenantIdRule(tenant.TenantId);
+                var wrapped = new ReceiverWithRules(receiver, [rule]);
+                var tenantListener = await tenant.Transport.buildListener(runtime, wrapped, queue);
+                compound.Inner.Add(tenantListener);
+            }
+
+            return compound;
+        }
+
+        return listener;
+    }
+
+    private async Task<IListener> buildListener(IWolverineRuntime runtime, IReceiver receiver, RabbitMqQueue queue)
+    {
+        var singleListener = new RabbitMqListener(runtime, queue, this, receiver);
+        await singleListener.CreateAsync();
+        return singleListener;
     }
 }

@@ -7,8 +7,10 @@ using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Events;
 using Marten.Events.Aggregation;
+using Marten.Linq.Members;
 using Marten.Schema;
 using Wolverine.Attributes;
+using Wolverine.Codegen;
 using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Publishing;
@@ -97,6 +99,8 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
         RelayAggregateToHandlerMethod(loader.ReturnVariable, firstCall, AggregateType);
 
         chain.Postprocessors.Add(MethodCall.For<IDocumentSession>(x => x.SaveChangesAsync(default)));
+        
+        new AggregateHandling(AggregateType, new Variable(AggregateIdMember.GetRawMemberType(), "aggregateId")).Store(chain);
     }
 
     internal static void DetermineEventCaptureHandling(IChain chain, MethodCall firstCall, Type aggregateType)
@@ -220,7 +224,7 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
     {
         var conventionalMemberName = $"{aggregateType.Name}Id";
         var member = commandType.GetMembers().FirstOrDefault(x =>
-            x.HasAttribute<IdentityAttribute>() || x.Name.EqualsIgnoreCase(conventionalMemberName));
+            x.HasAttribute<IdentityAttribute>() || x.Name.EqualsIgnoreCase(conventionalMemberName) || x.Name.EqualsIgnoreCase("Id"));
 
         if (member == null)
         {

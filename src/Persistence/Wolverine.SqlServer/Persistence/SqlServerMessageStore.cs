@@ -1,6 +1,5 @@
 ﻿using System.Data;
 using System.Data.Common;
-using System.Runtime.InteropServices;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Data.SqlClient;
@@ -11,6 +10,7 @@ using Weasel.SqlServer.Tables;
 using Wolverine.Logging;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
+using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.SqlServer.Sagas;
@@ -27,6 +27,8 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
     private readonly string _moveToDeadLetterStorageSql;
     private readonly string _scheduledLockId;
     private ImHashMap<Type, ISagaStorage> _sagaStorage = ImHashMap<Type, ISagaStorage>.Empty;
+    
+    private readonly List<ISchemaObject> _externalTables = new();
 
 
     public SqlServerMessageStore(DatabaseSettings database, DurabilitySettings settings,
@@ -105,43 +107,6 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
     /// </summary>
     public string DatabasePrincipal { get; set; } = "dbo";
 
-    public override async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
-    {
-        if (HasDisposed) return;
-
-        var table = new DataTable();
-        table.Columns.Add(new DataColumn("ID", typeof(Guid)));
-        table.Rows.Add(envelope.Id);
-
-        var builder = ToCommandBuilder();
-
-        var list = builder.AddNamedParameter("IDLIST", table).As<SqlParameter>();
-        list.SqlDbType = SqlDbType.Structured;
-        list.TypeName = $"{SchemaName}.EnvelopeIdList";
-
-        builder.Append(_moveToDeadLetterStorageSql);
-
-        DatabasePersistence.ConfigureDeadLetterCommands(envelope, exception, builder, this);
-
-        var cmd = builder.Compile();
-        await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
-        cmd.Connection = conn;
-
-        try
-        {
-            await cmd.ExecuteNonQueryAsync(_cancellation);
-        }
-        catch (Exception e)
-        {
-            if (isExceptionFromDuplicateEnvelope(e)) return;
-            throw;
-        }
-        finally
-        {
-            await conn.CloseAsync();
-        }
-    }
-
     public override Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null)
     {
         var table = new DataTable();
@@ -219,23 +184,95 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
         return new DbCommandBuilder(new SqlCommand());
     }
 
-    public override Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
-    {
-        var cmd = CreateCommand($"{_settings.SchemaName}.uspMarkIncomingOwnership");
-        cmd.CommandType = CommandType.StoredProcedure;
-
-        return cmd
-            .WithIdList(this, incoming)
-            .With("owner", ownerId)
-            .ExecuteNonQueryAsync(_cancellation);
-    }
-
     public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)
     {
         builder.Append( $"select TOP {Durability.RecoveryBatchSize} {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= ");
         builder.AppendParameter(utcNow);
         builder.Append(" order by execution_time");
         builder.Append(';');
+    }
+
+    public override async Task MigrateExternalMessageTable(ExternalMessageTable definition)
+    {
+        var table = (Table)AddExternalMessageTable(definition);
+        await using var conn = CreateConnection();
+        await conn.OpenAsync();
+        await table.MigrateAsync(conn);
+        await conn.CloseAsync();
+    }
+
+    public override async Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string messageTypeName, byte[] json,
+        CancellationToken token)
+    {
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(token);
+
+        if (table.MessageTypeColumnName.IsEmpty())
+        {
+            await conn.CreateCommand(
+                    $"insert into {table.TableName.QualifiedName} ({table.IdColumnName}, {table.JsonBodyColumnName}) values (@id, @json)")
+                .With("id", Guid.NewGuid())
+                .With("json", json)
+                .ExecuteNonQueryAsync(token);
+        }
+        else
+        {
+            await conn.CreateCommand(
+                    $"insert into {table.TableName.QualifiedName} ({table.IdColumnName}, {table.JsonBodyColumnName}, {table.MessageTypeColumnName}) values (@id, @json, @message)")
+                .With("id", Guid.NewGuid())
+                .With("json", json)
+                .With("message", messageTypeName)
+                .ExecuteNonQueryAsync(token);
+        }
+        
+        await conn.CloseAsync();
+    }
+
+    public override ISchemaObject AddExternalMessageTable(ExternalMessageTable definition)
+    {
+        var table = new Table(definition.TableName);
+        table.AddColumn<Guid>(definition.IdColumnName).AsPrimaryKey();
+        table.AddColumn(definition.JsonBodyColumnName, "varbinary(max)").NotNull();
+        if (definition.TimestampColumnName.IsNotEmpty())
+        {
+            table.AddColumn<DateTimeOffset>(definition.TimestampColumnName).DefaultValueByExpression("SYSDATETIMEOFFSET()");
+        }
+
+        if (definition.MessageTypeColumnName.IsNotEmpty())
+        {
+            table.AddColumn(definition.MessageTypeColumnName, "varchar(250)");
+        }
+
+        return table;
+    }
+
+    protected override Task deleteMany(DbTransaction tx, Guid[] ids, DbObjectName tableName, string idColumnName)
+    {
+        var builder = new CommandBuilder();
+
+        foreach (var id in ids)
+        {
+            builder.Append($"delete from {tableName.QualifiedName} where {idColumnName} = ");
+            builder.AppendParameter(id);
+            builder.Append(";");
+        }
+
+        var command = builder.Compile();
+        command.Connection = (SqlConnection)tx.Connection;
+        command.Transaction = (SqlTransaction)tx;
+
+        return command.ExecuteNonQueryAsync();
+    }
+
+    protected override Task<bool> TryAttainLockAsync(int lockId, SqlConnection connection, CancellationToken token)
+    {
+        return connection.TryGetGlobalLock(lockId.ToString(), token);
+    }
+
+    protected override DbCommand buildFetchSql(SqlConnection conn, DbObjectName tableName, string[] columnNames, int maxRecords)
+    {
+        return conn.CreateCommand($"select top(@limit) {columnNames.Join(", ")} from {tableName.QualifiedName}")
+            .With("limit", maxRecords);
     }
 
     public override async Task PollForScheduledMessagesAsync(ILocalReceiver localQueue,
@@ -296,16 +333,20 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
     public override IEnumerable<ISchemaObject> AllObjects()
     {
         yield return new OutgoingEnvelopeTable(SchemaName);
-        yield return new IncomingEnvelopeTable(SchemaName);
-        yield return new DeadLettersTable(SchemaName);
+        yield return new IncomingEnvelopeTable(Durability, SchemaName);
+        yield return new DeadLettersTable(Durability, SchemaName);
         yield return new EnvelopeIdTable(SchemaName);
         yield return new WolverineStoredProcedure("uspDeleteIncomingEnvelopes.sql", this);
         yield return new WolverineStoredProcedure("uspDeleteOutgoingEnvelopes.sql", this);
         yield return new WolverineStoredProcedure("uspDiscardAndReassignOutgoing.sql", this);
         yield return new WolverineStoredProcedure("uspMarkIncomingOwnership.sql", this);
         yield return new WolverineStoredProcedure("uspMarkOutgoingOwnership.sql", this);
-
-
+        
+        foreach (var table in _externalTables)
+        {
+            yield return table;
+        }
+        
         if (_settings.IsMaster)
         {
             var nodeTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeTableName));

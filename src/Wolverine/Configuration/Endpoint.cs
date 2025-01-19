@@ -24,6 +24,21 @@ public interface IDatabaseBackedEndpoint
     Task ScheduleRetryAsync(Envelope envelope, CancellationToken cancellation);
 }
 
+public enum TenancyBehavior
+{
+    /// <summary>
+    /// In the case of being used within a multi-tenancy aware transport setup,
+    /// this endpoint is tenant specific
+    /// </summary>
+    TenantAware,
+    
+    /// <summary>
+    /// In the case of being used within a multi-tenancy aware transport setup,
+    /// this endpoint is global across all tenants
+    /// </summary>
+    Global
+}
+
 /// <summary>
 ///     Defines how message listening or sending functions
 ///     at runtime
@@ -102,9 +117,15 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     }
 
     /// <summary>
-    /// In the case of using 
+    /// In the case of using "sticky handlers"
     /// </summary>
     public List<Type> StickyHandlers { get; } = new();
+
+    /// <summary>
+    /// Governs whether this endpoint should be "per tenant" or global in the case of using
+    /// a broker per tenant
+    /// </summary>
+    public TenancyBehavior TenancyBehavior { get; set; } = TenancyBehavior.TenantAware;
 
     /// <summary>
     /// If a listener, what is the scope of the
@@ -216,6 +237,32 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     public bool IsUsedForReplies { get; set; }
 
     public IList<IEnvelopeRule> OutgoingRules { get; } = new List<IEnvelopeRule>();
+    public IList<IEnvelopeRule> IncomingRules { get; } = new List<IEnvelopeRule>();
+
+    /// <summary>
+    /// In some cases, you may want to tell Wolverine that any message
+    /// coming into this endpoint are automatically tagged to a certain
+    /// tenant id
+    /// </summary>
+    public virtual string? TenantId { get; set; }
+    
+    internal IEnumerable<IEnvelopeRule> RulesForIncoming()
+    {
+        foreach (var rule in IncomingRules)
+        {
+            yield return rule;
+        }
+
+        if (MessageType != null)
+        {
+            yield return new MessageTypeRule(MessageType);
+        }
+
+        if (TenantId.IsNotEmpty())
+        {
+            yield return new TenantIdRule(TenantId);
+        }
+    }
 
     internal ISendingAgent? Agent { get; set; }
 
@@ -361,6 +408,12 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// <returns></returns>
     public abstract ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver);
 
+    internal IReceiver MaybeWrapReceiver(IReceiver inner)
+    {
+        var rules = RulesForIncoming().ToArray();
+        return rules.Any() ? new ReceiverWithRules(inner, rules) : inner;
+    }
+    
     /// <summary>
     ///     Create new sending agent for this
     /// </summary>

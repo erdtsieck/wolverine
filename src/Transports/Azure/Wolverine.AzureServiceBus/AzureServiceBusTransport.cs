@@ -3,14 +3,16 @@ using Azure.Core;
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using JasperFx.Core;
+using Microsoft.Extensions.Logging;
 using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 
 namespace Wolverine.AzureServiceBus;
 
-public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>, IAsyncDisposable
+public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>, IAsyncDisposable
 {
     public const string ProtocolName = "asb";
     public const string ResponseEndpointName = "AzureServiceBusResponses";
@@ -37,6 +39,8 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
     {
         return identifier.ToLowerInvariant();
     }
+    
+    internal LightweightCache<string, AzureServiceBusTenant> Tenants { get; } = new();
 
     /// <summary>
     /// Is this transport connection allowed to build and use response, retry, and control queues
@@ -59,18 +63,42 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
         TransportType = ServiceBusTransportType.AmqpTcp
     };
 
-    public ServiceBusAdministrationClient ManagementClient => _managementClient.Value;
+    public async Task WithManagementClientAsync(Func<ServiceBusAdministrationClient, Task> action)
+    {
+        await action(_managementClient.Value);
 
+        foreach (var tenant in Tenants)
+        {
+            await tenant.Transport.WithManagementClientAsync(action);
+        }
+    }
+
+    public async Task WithServiceBusClientAsync(Func<ServiceBusClient, Task> action)
+    {
+        await action(BusClient);
+        
+        foreach (var tenant in Tenants)
+        {
+            await tenant.Transport.WithServiceBusClientAsync(action);
+        }
+    }
+    
     public ServiceBusClient BusClient => _busClient.Value;
 
-    public ValueTask DisposeAsync()
+
+    public ServiceBusAdministrationClient ManagementClient => _managementClient.Value;
+
+    public async ValueTask DisposeAsync()
     {
         if (_busClient.IsValueCreated)
         {
-            return _busClient.Value.DisposeAsync();
+            await _busClient.Value.DisposeAsync();
         }
 
-        return ValueTask.CompletedTask;
+        foreach (var tenant in Tenants)
+        {
+            await tenant.Transport.DisposeAsync();
+        }
     }
 
     protected override void tryBuildSystemEndpoints(IWolverineRuntime runtime)
@@ -195,6 +223,7 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
 
         return new ServiceBusClient(ConnectionString, ClientOptions);
     }
+    
     private ServiceBusAdministrationClient createServiceBusAdministrationClient()
     {
         if (FullyQualifiedNamespace.IsNotEmpty() && TokenCredential != null)
@@ -214,4 +243,6 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
 
         return new ServiceBusAdministrationClient(ConnectionString);
     }
+
+
 }

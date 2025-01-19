@@ -49,7 +49,7 @@ Which is registered like this (or as described in [`Registering Middleware by Me
 opts.AddMiddlewareByMessageType(typeof(FakeAuthenticationMiddleware));
 opts.AddMiddlewareByMessageType(typeof(CanShipOrderMiddleWare));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L184-L187' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_http_middleware_by_type' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L191-L194' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_http_middleware_by_type' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The key point to notice there is that `IResult` is a "return value" of the middleware. In the case of an HTTP endpoint,
@@ -80,6 +80,41 @@ public static async Task<IResult> ExecuteOne<T>(IValidator<T> validator, IProble
 }
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.FluentValidation/Internals/FluentValidationHttpExecutor.cs#L9-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_fluentvalidationhttpexecutor_executeone' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Likewise, you can also just return a `null` from middleware for `IResult` and Wolverine will interpret that as
+"just continue" as shown in this sample:
+
+<!-- snippet: sample_using_optional_iresult_with_openapi_metadata -->
+<a id='snippet-sample_using_optional_iresult_with_openapi_metadata'></a>
+```cs
+public class ValidatedCompoundEndpoint2
+{
+    public static User? Load(BlockUser2 cmd)
+    {
+        return cmd.UserId.IsNotEmpty() ? new User(cmd.UserId) : null;
+    }
+
+    // This method would be called, and if the NotFound value is
+    // not null, will stop the rest of the processing
+    // Likewise, Wolverine will use the NotFound type to add
+    // OpenAPI metadata
+    public static NotFound? Validate(User? user)
+    {
+        if (user == null)
+            return (NotFound?)Results.NotFound<User>(user);
+
+        return null;
+    }
+
+    [WolverineDelete("/optional/result")]
+    public static  string Handle(BlockUser2 cmd, User user)
+    {
+        return "Ok - user blocked";
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Validation/ValidatedCompoundEndpoint.cs#L33-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_optional_iresult_with_openapi_metadata' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Using Configure(chain) Methods

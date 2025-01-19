@@ -32,6 +32,24 @@ public enum DurabilityMode
     MediatorOnly
 }
 
+/// <summary>
+/// Controls how Wolverine chooses to identify received message uniqueness in message storage
+/// </summary>
+public enum MessageIdentity
+{
+    /// <summary>
+    /// The default, "classic" behavior where Wolverine only identifies a received message by the unique message id
+    /// </summary>
+    IdOnly,
+    
+    /// <summary>
+    /// Make Wolverine identify message identity uniqueness by a combination of the message id and destination (received_at). Use
+    /// this if you are having a single Wolverine process receive the same message from multiple external listeners. This may be
+    /// necessary for some "Modular Monolith" approaches
+    /// </summary>
+    IdAndDestination
+}
+
 public class DurabilitySettings
 {
     private readonly CancellationTokenSource _cancellation = new();
@@ -40,6 +58,13 @@ public class DurabilitySettings
     /// Control and optimize the durability agent behavior within Wolverine applications
     /// </summary>
     public DurabilityMode Mode { get; set; } = DurabilityMode.Balanced;
+
+    /// <summary>
+    /// Direct Wolverine on how it judges message identity. "Classic" default is IdOnly. Switch to IdAndDestination
+    /// for Modular Monolith usage where you may be receiving the same message and processing separately in different
+    /// external transport listening endpoints
+    /// </summary>
+    public MessageIdentity MessageIdentity { get; set; } = MessageIdentity.IdOnly;
 
     /// <summary>
     ///     Should the message durability agent be enabled during execution.
@@ -120,6 +145,16 @@ public class DurabilitySettings
     /// </summary>
     public TimeSpan TenantCheckPeriod { get; set; } = 5.Seconds();
 
+    /// <summary>
+    /// If using any kind of message persistence, this is the polling time
+    /// to update the metrics on the persisted envelope counts. Default is 5 seconds
+    /// </summary>
+    public TimeSpan UpdateMetricsPeriod { get; set; } = 5.Seconds();
+
+    /// <summary>
+    /// Is the polling for durability metrics enabled? Default is true
+    /// </summary>
+    public bool DurabilityMetricsEnabled { get; set; } = true;
 
     /// <summary>
     ///     Get or set the logical Wolverine service name. By default, this is

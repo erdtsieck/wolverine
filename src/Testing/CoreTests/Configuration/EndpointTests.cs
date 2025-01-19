@@ -1,7 +1,11 @@
+using NSubstitute;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
+using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Configuration;
@@ -37,6 +41,72 @@ public class EndpointTests
         var settings = new DurabilitySettings { Mode = mode };
 
         endpoint.ShouldAutoStartAsListener(settings).ShouldBe(shouldStart);
+    }
+
+    [Fact]
+    public void return_message_type_rule()
+    {
+        var endpoint = new TestEndpoint(EndpointRole.System);
+        endpoint.RulesForIncoming().Any().ShouldBeFalse();
+
+        endpoint.MessageType = typeof(Message1);
+
+        var rules = endpoint.RulesForIncoming().ToArray();
+
+        var envelope = ObjectMother.Envelope();
+        foreach (var rule in rules)
+        {
+            rule.Modify(envelope);
+        }
+        
+        envelope.MessageType.ShouldBe(typeof(Message1).ToMessageTypeName());
+    }
+    
+    [Fact]
+    public void return_tenant_id_rule()
+    {
+        var endpoint = new TestEndpoint(EndpointRole.System);
+        endpoint.RulesForIncoming().Any().ShouldBeFalse();
+
+        endpoint.TenantId = "one";
+
+        var rules = endpoint.RulesForIncoming().ToArray();
+
+        var envelope = ObjectMother.Envelope();
+        foreach (var rule in rules)
+        {
+            rule.Modify(envelope);
+        }
+        
+        envelope.TenantId.ShouldBe("one");
+    }
+
+    [Fact]
+    public void maybe_wrap_receiver_no_rules()
+    {
+        var endpoint = new TestEndpoint(EndpointRole.System);
+        endpoint.RulesForIncoming().Any().ShouldBeFalse();
+
+        var inner = Substitute.For<IReceiver>();
+        
+        endpoint.MaybeWrapReceiver(inner)
+            .ShouldBeSameAs(inner);
+    }
+
+    [Fact]
+    public void maybe_wrap_receiver_with_rules()
+    {
+        var endpoint = new TestEndpoint(EndpointRole.System);
+        endpoint.TenantId = "one";
+        
+        var inner = Substitute.For<IReceiver>();
+
+        var wrapped = endpoint.MaybeWrapReceiver(inner)
+            .ShouldBeOfType<ReceiverWithRules>();
+        
+        wrapped.Inner.ShouldBeSameAs(inner);
+        wrapped.Rules.Single().ShouldBeOfType<TenantIdRule>();
+
     }
 }
 

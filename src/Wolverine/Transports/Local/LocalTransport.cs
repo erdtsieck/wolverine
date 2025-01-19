@@ -4,6 +4,7 @@ using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
+using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Routing;
 using Wolverine.Util;
 
@@ -66,6 +67,12 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
     public ILocalMessageRoutingConvention CustomizeQueues(Action<Type, IListenerConfiguration> customization)
     {
         _customization = customization ?? throw new ArgumentNullException(nameof(customization));
+        return this;
+    }
+
+    public ILocalMessageRoutingConvention IsAdditive(bool additive)
+    {
+        
         return this;
     }
 
@@ -153,11 +160,21 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
     {
         if (!runtime.Options.LocalRoutingConventionDisabled)
         {
-            foreach (var messageType in handledMessageTypes) FindOrCreateQueueForMessageTypeByConvention(messageType);
+            foreach (var messageType in handledMessageTypes)
+            {
+                var chain = runtime.Options.HandlerGraph.ChainFor(messageType);
+                if (chain.Handlers.Any())
+                {
+                    FindOrCreateQueueForMessageTypeByConvention(messageType);
+                }
+            }
         }
 
         // Apply individual queue configuration
-        foreach (var delayedConfiguration in _delayedConfigurations) delayedConfiguration.Apply();
+        foreach (var delayedConfiguration in _delayedConfigurations)
+        {
+            delayedConfiguration.Apply();
+        }
     }
 
     internal LocalQueue FindOrCreateQueueForMessageTypeByConvention(Type messageType)
@@ -190,9 +207,24 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
 
     internal IEnumerable<Endpoint> DiscoverSenders(Type messageType, IWolverineRuntime runtime)
     {
+        var chain = runtime.Options.HandlerGraph.ChainFor(messageType);
+        
+        // This only covers the default message type to local queue routing
         if (Assignments.TryGetValue(messageType, out var queue))
         {
             yield return queue;
+        }
+        
+        // Now do "sticky" assignments too
+
+        if (chain == null)
+        {
+            yield break;
+        }
+        
+        foreach (var endpoint in chain.ByEndpoint.SelectMany(x => x.Endpoints))
+        {
+            yield return endpoint;
         }
     }
 
@@ -203,4 +235,53 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
 
         return configuration;
     }
+
+    internal void ApplyConfiguration(HandlerChain chain)
+    {
+        // Gotta go recursive
+        foreach (var handlerChain in chain.ByEndpoint)
+        {
+            ApplyConfiguration(handlerChain);
+        }
+        
+        var configured = chain.Handlers.Select(x => x.HandlerType)
+            .Where(x => x.CanBeCastTo(typeof(IConfigureLocalQueue))).ToArray();
+
+        if (!configured.Any()) return;
+
+        // Is it sticky?
+        if (chain.Endpoints.OfType<LocalQueue>().Any())
+        {
+            foreach (var handlerType in configured)
+            {
+                var applier = typeof(Applier<>).CloseAndBuildAs<IApplier>(handlerType);
+                foreach (var localQueue in chain.Endpoints.OfType<LocalQueue>())
+                {
+                    applier.Apply(new LocalQueueConfiguration(localQueue));
+                }
+            }
+        }
+        else
+        {
+            var configuration = ConfigureQueueFor(chain.MessageType);
+            foreach (var handlerType in configured)
+            {
+                typeof(Applier<>).CloseAndBuildAs<IApplier>(handlerType).Apply(configuration);
+            }
+        }
+    }
+
+    private interface IApplier
+    {
+        void Apply(LocalQueueConfiguration configuration);
+    }
+
+    private class Applier<T> : IApplier where T : IConfigureLocalQueue
+    {
+        public void Apply(LocalQueueConfiguration configuration)
+        {
+            T.Configure(configuration);
+        }
+    }
+        
 }

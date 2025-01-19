@@ -1,6 +1,12 @@
-﻿using JasperFx.Core;
+﻿using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
+using JasperFx.Core;
 using Marten;
-using MassTransit;
+using Wolverine.Configuration;
+using Wolverine.Marten.Persistence.Sagas;
+using Wolverine.Runtime;
+using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Marten;
 
@@ -15,6 +21,51 @@ public interface IMartenOp : ISideEffect
 }
 
 #endregion
+
+internal class MartenOpPolicy : IChainPolicy
+{
+    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IServiceContainer container)
+    {
+        foreach (var chain in chains)
+        {
+            var candidates = chain.ReturnVariablesOfType<IEnumerable<IMartenOp>>().ToArray();
+            if (candidates.Any())
+            {
+                new MartenPersistenceFrameProvider().ApplyTransactionSupport(chain, container);
+            }
+            
+            foreach (var collection in candidates)
+            {
+                collection.UseReturnAction(v => new ForEachMartenOpFrame(v));
+            }
+        }
+    }
+}
+
+internal class ForEachMartenOpFrame : SyncFrame
+{
+    private readonly Variable _collection;
+    private Variable _session;
+
+    public ForEachMartenOpFrame(Variable collection)
+    {
+        _collection = collection;
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _session = chain.FindVariable(typeof(IDocumentSession));
+        yield return _session;
+        yield return _collection;
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("Apply each Marten op to the current document session");
+        writer.Write($"foreach (var item_of_{_collection.Usage} in {_collection.Usage}) item_of_{_collection.Usage}.{nameof(IMartenOp.Execute)}({_session.Usage});");
+        Next?.GenerateCode(method, writer);
+    }
+}
 
 /// <summary>
 /// Access to Marten related side effect return values from message handlers
@@ -36,6 +87,23 @@ public static class MartenOps
         }
 
         return new StoreDoc<T>(document);
+    }
+
+    /// <summary>
+    /// Return a side effect of storing many documents of a specific document type in Marten
+    /// </summary>
+    /// <param name="documents"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public static StoreManyDocs<T> StoreMany<T>(params T[] documents) where T : notnull
+    {
+        if (documents == null)
+        {
+            throw new ArgumentNullException(nameof(documents));
+        }
+
+        return new StoreManyDocs<T>(documents);
     }
 
     /// <summary>
@@ -239,6 +307,23 @@ public class StoreDoc<T> : DocumentOp where T : notnull
     }
 }
 
+public class StoreManyDocs<T> : DocumentsOp where T : notnull
+{
+    private readonly T[] _documents;
+
+    public StoreManyDocs(params T[] documents) : base(documents.Cast<object>().ToArray())
+    {
+        _documents = documents;
+    }
+
+    public StoreManyDocs(IList<T> documents) : this(documents.ToArray()) { }
+
+    public override void Execute(IDocumentSession session)
+    {
+        session.Store(_documents);
+    }
+}
+
 public class InsertDoc<T> : DocumentOp where T : notnull
 {
     private readonly T _document;
@@ -291,6 +376,18 @@ public abstract class DocumentOp : IMartenOp
     protected DocumentOp(object document)
     {
         Document = document;
+    }
+
+    public abstract void Execute(IDocumentSession session);
+}
+
+public abstract class DocumentsOp : IMartenOp
+{
+    public object[] Documents { get; }
+
+    protected DocumentsOp(params object[] documents)
+    {
+        Documents = documents;
     }
 
     public abstract void Execute(IDocumentSession session);

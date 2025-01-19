@@ -137,6 +137,9 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
         try
         {
+            using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.StoppingListener);
+            activity?.SetTag(WolverineTracing.EndpointAddress, Uri);
+            
             await Listener.StopAsync();
             await _receiver!.DrainAsync();
 
@@ -164,9 +167,11 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             return;
         }
 
-        _receiver ??= await buildReceiverAsync();
+        using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.StartingListener);
+        activity?.SetTag(WolverineTracing.EndpointAddress, Endpoint.Uri);
 
-
+        _receiver ??= Endpoint.MaybeWrapReceiver(await buildReceiverAsync());
+        
         if (Endpoint.ListenerCount > 1)
         {
             var listeners = new List<IListener>(Endpoint.ListenerCount);
@@ -193,6 +198,8 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     {
         try
         {
+            using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.PausingListener);
+            activity?.SetTag(WolverineTracing.EndpointAddress, Listener.Address);
             await StopAndDrainAsync();
         }
         catch (Exception e)
@@ -213,6 +220,10 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         {
             return;
         }
+        
+        using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.PausingListener);
+        activity?.SetTag(WolverineTracing.EndpointAddress, Listener.Address);
+        activity?.SetTag(WolverineTracing.StopReason, WolverineTracing.TooBusy);
 
         try
         {

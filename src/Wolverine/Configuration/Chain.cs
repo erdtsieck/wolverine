@@ -2,6 +2,7 @@
 using System.Security.Claims;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
@@ -125,8 +126,37 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         var genericMethodAtts = handlers.SelectMany(x => x.Method.GetCustomAttributes<ModifyChainAttribute>());
 
         foreach (var attribute in genericHandlerAtts.Concat(genericMethodAtts))
+        {
             attribute.Modify(this, rules, container);
+        }
+
+        tryApplyResponseAware();
     }
+    
+
+    /// <summary>
+    ///     Find all variables returned by any handler call in this chain
+    ///     that can be cast to T
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public IEnumerable<Variable> ReturnVariablesOfType<T>()
+    {
+        return HandlerCalls().SelectMany(x => x.Creates).Where(x => x.VariableType.CanBeCastTo<T>());
+    }
+    
+    /// <summary>
+    ///     Find all variables returned by any handler call in this chain
+    ///     that can be cast to the supplied type
+    /// </summary>
+    /// <returns></returns>
+    public IEnumerable<Variable> ReturnVariablesOfType(Type interfaceType)
+    {
+        return HandlerCalls().SelectMany(x => x.Creates).Where(x => x.VariableType.CanBeCastTo(interfaceType));
+    }
+
+    public abstract bool TryFindVariable(string valueName, ValueSource source, Type valueType, out Variable variable);
+    public abstract Frame[] AddStopConditionIfNull(Variable variable);
 
     private static Type[] _typesToIgnore = new Type[]
     {
@@ -223,8 +253,13 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         }
     }
 
-    protected void applyImpliedMiddlewareFromHandlers(GenerationRules generationRules)
+    private bool _appliedImpliedMiddleware;
+    
+    public void ApplyImpliedMiddlewareFromHandlers(GenerationRules generationRules)
     {
+        if (_appliedImpliedMiddleware) return;
+        _appliedImpliedMiddleware = true;
+        
         var handlerTypes = HandlerCalls().Select(x => x.HandlerType).Distinct();
         foreach (var handlerType in handlerTypes)
         {
@@ -267,5 +302,39 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
                 }
             }
         }
+    }
+
+    public abstract void UseForResponse(MethodCall methodCall);
+
+    protected internal void tryApplyResponseAware()
+    {
+        var responseAwares = ReturnVariablesOfType(typeof(IResponseAware)).ToArray();
+        if (responseAwares.Length == 0) return;
+        if (responseAwares.Length > 1)
+            throw new InvalidOperationException(
+                $"Cannot use more than one IResponseAware policy per chain. Chain {this} has {responseAwares.Select(x => x.ToString()).Join(", ")}");
+
+        typeof(Applier<>).CloseAndBuildAs<IApplier>(this, responseAwares[0].VariableType).Apply();
+    }
+}
+
+internal interface IApplier
+{
+    void Apply();
+}
+
+internal class Applier<T> : IApplier where T : IResponseAware
+{
+    private readonly IChain _chain;
+
+    public Applier(IChain chain)
+    {
+        _chain = chain;
+    }
+
+
+    public void Apply()
+    {
+        T.ConfigureResponse(_chain);
     }
 }

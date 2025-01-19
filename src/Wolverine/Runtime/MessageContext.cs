@@ -238,6 +238,10 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         {
             await envelope.StoreAndForwardAsync();
         }
+        catch (NotSupportedException)
+        {
+            // I don't like this, but if this happens, then it should never have been routed to the failure ack
+        }
         catch (Exception e)
         {
             // Should never happen, but still.
@@ -462,7 +466,11 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
     {
         base.TrackEnvelopeCorrelation(outbound, activity);
         outbound.SagaId = _sagaId?.ToString() ?? Envelope?.SagaId ?? outbound.SagaId;
-        outbound.ConversationId = ConversationId;
+
+        if (ConversationId != Guid.Empty)
+        {
+            outbound.ConversationId = ConversationId;
+        }
 
         if (Envelope != null)
         {
