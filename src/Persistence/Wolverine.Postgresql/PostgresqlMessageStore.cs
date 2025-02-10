@@ -105,6 +105,21 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
         return false;
     }
 
+    protected override void writePagingAfter(DbCommandBuilder builder, int offset, int limit)
+    {
+        if (offset > 0)
+        {
+            builder.Append(" OFFSET ");
+            builder.AppendParameter(offset);
+        }
+        
+        if (limit > 0)
+        {
+            builder.Append(" LIMIT ");
+            builder.AppendParameter(limit);
+        }
+    }
+
     public override ISchemaObject AddExternalMessageTable(ExternalMessageTable definition)
     {
         var table = new Table(definition.TableName);
