@@ -1,11 +1,12 @@
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
+using ImTools;
 using JasperFx.Core;
 using Wolverine.Transports;
 
 namespace Wolverine.Pubsub.Internal;
 
-internal class PubsubEnvelopeMapper : EnvelopeMapper<ReceivedMessage, PubsubMessage>, IPubsubEnvelopeMapper
+public class PubsubEnvelopeMapper : EnvelopeMapper<ReceivedMessage, PubsubMessage>, IPubsubEnvelopeMapper
 {
     public PubsubEnvelopeMapper(PubsubEndpoint endpoint) : base(endpoint)
     {

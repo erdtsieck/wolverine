@@ -1,3 +1,4 @@
+using DotPulsar;
 using DotPulsar.Abstractions;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
@@ -72,12 +73,65 @@ public static class PulsarTransportExtensions
         endpoint.IsListener = true;
         return new PulsarListenerConfiguration(endpoint);
     }
+
+    /// <summary>
+    ///     Set the specified unsubscribe on close setting for all Pulsar endpoints.
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="unsubscribeOnClose"></param>
+    /// <returns></returns>
+    public static IPolicies UnsubscribePulsarOnClose(this IPolicies policies, PulsarUnsubscribeOnClose unsubscribeOnClose)
+    {
+        policies.Add(new PulsarUnsubscribeOnClosePolicy(unsubscribeOnClose));
+        return policies;
+    }
+
+    /// <summary>
+    ///     Disable the possibility of requeueing messages for all Pulsar endpoints.
+    /// </summary>
+    /// <param name="options"></param>
+    /// <returns></returns>
+    public static IPolicies DisablePulsarRequeue(this IPolicies policies)
+    {
+        policies.Add(new PulsarEnableRequeuePolicy(PulsarRequeue.Disabled));
+        return policies;
+    }
 }
 
 public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerConfiguration, PulsarEndpoint>
 {
     public PulsarListenerConfiguration(PulsarEndpoint endpoint) : base(endpoint)
     {
+    }
+
+    /// <summary>
+    /// Provide a subscription name to Pulsar for this topic
+    /// </summary>
+    /// <param name="subscriptionName"></param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration SubscriptionName(string subscriptionName)
+    {
+        add(e =>
+        {
+            e.SubscriptionName = subscriptionName;
+        });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Override the Pulsar subscription type for just this topic
+    /// </summary>
+    /// <param name="subscriptionType"></param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration SubscriptionType(SubscriptionType subscriptionType)
+    {
+        add(e =>
+        {
+            e.SubscriptionType = subscriptionType;
+        });
+
+        return this;
     }
 
     /// <summary>
@@ -93,6 +147,35 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
             configure?.Invoke(e.CircuitBreakerOptions);
         });
 
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Disable the possibility of requeueing messages
+    /// </summary>
+    /// <returns></returns>
+    public PulsarListenerConfiguration DisableRequeue()
+    {
+        add(e =>
+        {
+            e.EnableRequeue = false;
+        });
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Set whether the subscription should be unsubscribed when the listener is closed.
+    /// </summary>
+    /// <param name="unsubscribeOnClose"></param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration UnsubscribeOnClose(bool unsubscribeOnClose)
+    {
+        add(e =>
+        {
+            e.UnsubscribeOnClose = unsubscribeOnClose;
+        });
 
         return this;
     }

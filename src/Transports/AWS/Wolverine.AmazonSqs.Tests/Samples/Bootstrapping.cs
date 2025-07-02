@@ -229,6 +229,43 @@ public class Bootstrapping
 
         #endregion
     }
+    
+    
+    public async Task receive_sns_topic_metadata()
+    {
+        #region sample_receive_sns_topic_metadata_in_sqs
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAmazonSqsTransport();
+
+                opts.ListenToSqsQueue("incoming")
+                    // Interops with SNS structured metadata
+                    .ReceiveSnsTopicMessage();
+            }).StartAsync();
+
+        #endregion
+    }
+    
+    public async Task receive_sns_topic_metadata_with_custom_mapper()
+    {
+        #region sample_receive_sns_topic_metadata_with_custom_mapper_in_sqs
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAmazonSqsTransport();
+
+                opts.ListenToSqsQueue("incoming")
+                    // Interops with SNS structured metadata
+                    .ReceiveSnsTopicMessage(
+                        // Sets inner mapper for original message
+                        new RawJsonSqsEnvelopeMapper(typeof(Message1), new JsonSerializerOptions()));
+            }).StartAsync();
+
+        #endregion
+    }
 
     public async Task publish_raw_json()
     {
@@ -260,6 +297,7 @@ public class Bootstrapping
             {
                 opts.UseAmazonSqsTransport()
                     .UseConventionalRouting()
+                    .DisableAllNativeDeadLetterQueues()
                     .ConfigureListeners(l => l.InteropWith(new CustomSqsMapper()))
                     .ConfigureSenders(s => s.InteropWith(new CustomSqsMapper()));
             }).StartAsync();

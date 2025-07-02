@@ -5,6 +5,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using Wolverine.Attributes;
 using Wolverine.Logging;
 using Wolverine.Middleware;
@@ -23,10 +24,12 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     where TModifyAttribute : Attribute, IModifyChain<TChain>
 {
     private readonly List<Type> _dependencies = [];
+    public abstract void ApplyParameterMatching(MethodCall call);
     public List<Frame> Middleware { get; } = [];
 
     public List<Frame> Postprocessors { get; } = [];
 
+    [IgnoreDescription]
     public Dictionary<string, object> Tags { get; } = new();
 
     public abstract string Description { get; }

@@ -85,6 +85,11 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
     /// </summary>
     public DeadLetterQueue? DeadLetterQueue { get; set; }
 
+    /// <summary>
+    ///     The unique id for listener that is actively listening to this queue.
+    /// </summary>
+    public string? CustomListenerId { get; set; }
+
     public override async ValueTask<bool> CheckAsync()
     {
         if (isSystemQueue())
@@ -287,8 +292,6 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
 
     internal async Task DeclareAsync(IChannel channel, ILogger logger)
     {
-        if (HasDeclared) return;
-        
         if (QueueType != QueueType.classic)
         {
             Arguments[RabbitMqTransport.QueueTypeHeader] = QueueType.ToString();

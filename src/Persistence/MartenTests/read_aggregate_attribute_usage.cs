@@ -1,17 +1,17 @@
 using IntegrationTests;
-using JasperFx.CodeGeneration;
+using JasperFx.Resources;
 using Marten;
 using Marten.Events.Projections;
+using MartenTests.AggregateHandlerWorkflow;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Oakton.Resources;
 using Shouldly;
 using Wolverine;
 using Wolverine.Marten;
 
 namespace MartenTests;
 
-public class read_aggregate_attribute_usage: PostgresqlContext, IAsyncLifetime
+public class read_aggregate_attribute_usage : PostgresqlContext, IAsyncLifetime
 {
     private IHost theHost;
     private IDocumentStore theStore;
@@ -25,7 +25,7 @@ public class read_aggregate_attribute_usage: PostgresqlContext, IAsyncLifetime
                 opts.Durability.Mode = DurabilityMode.Solo;
 
                 opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(FindLettersHandler));
-                
+
                 opts.Services.AddMarten(m =>
                     {
                         m.Connection(Servers.PostgresConnectionString);
@@ -69,12 +69,11 @@ public class read_aggregate_attribute_usage: PostgresqlContext, IAsyncLifetime
     [Fact]
     public async Task end_to_end_sad_path()
     {
-        var envelope = await theHost.MessageBus().InvokeAsync<LetterAggregateEnvelope>(new FindAggregate(Guid.NewGuid()));
+        var envelope = await theHost.MessageBus()
+            .InvokeAsync<LetterAggregateEnvelope>(new FindAggregate(Guid.NewGuid()));
         envelope.ShouldBeNull();
     }
 }
-
-
 
 public record LetterAggregateEnvelope(LetterAggregate Inner);
 
@@ -85,11 +84,10 @@ public record FindAggregate(Guid Id);
 public static class FindLettersHandler
 {
     // This is admittedly just some weak sauce testing support code
-    public static LetterAggregateEnvelope Handle(
-        FindAggregate command, 
-        [ReadAggregate] LetterAggregate aggregate)
-    
-        => new LetterAggregateEnvelope(aggregate);
+    public static LetterAggregateEnvelope Handle(FindAggregate command, [ReadAggregate] LetterAggregate aggregate)
+    {
+        return new LetterAggregateEnvelope(aggregate);
+    }
 }
 
 #endregion

@@ -3,6 +3,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.Events;
 using Marten;
 using Marten.Events;
 using Microsoft.AspNetCore.Http;
@@ -53,7 +54,7 @@ public class AggregateAttribute : HttpChainParameterAttribute
 
     public override Variable Modify(HttpChain chain, ParameterInfo parameter, IServiceContainer container)
     {
-        if (chain.Method.Method.GetParameters().Where(x => x.HasAttribute<AggregateAttribute>()).Count() > 1)
+        if (chain.Method.Method.GetParameters().Count(x => x.HasAttribute<AggregateAttribute>()) > 1)
         {
             throw new InvalidOperationException(
                 "It is only possible (today) to use a single [Aggregate] attribute on an HTTP handler method. Maybe use [ReadAggregate] if all you need is the projected data");
@@ -62,8 +63,13 @@ public class AggregateAttribute : HttpChainParameterAttribute
         chain.Metadata.Produces(404);
 
         AggregateType = parameter.ParameterType;
+        if (AggregateType.IsNullable())
+        {
+            AggregateType = AggregateType.GetInnerTypeFromNullable();
+        }
+        
         var store = container.GetInstance<IDocumentStore>();
-        var idType = store.Options.Events.StreamIdentity == StreamIdentity.AsGuid ? typeof(Guid) : typeof(string);
+        var idType = store.Options.FindOrResolveDocumentType(AggregateType).IdType;
 
         IdVariable = FindRouteVariable(idType, chain);
         if (IdVariable == null)
