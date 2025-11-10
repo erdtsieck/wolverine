@@ -17,6 +17,9 @@ public partial class WolverineRuntime
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        // Make this idempotent because the AddResourceSetupOnStartup() can cause it to bootstrap twice
+        if (_hasStarted) return;
+        
         try
         {
             Logger.LogInformation("Starting Wolverine messaging for application assembly {Assembly}",
@@ -25,6 +28,8 @@ public partial class WolverineRuntime
             logCodeGenerationConfiguration();
 
             await ApplyAsyncExtensions();
+
+            await _stores.Value.InitializeAsync();
 
             if (!Options.ExternalTransportsAreStubbed)
             {
@@ -44,8 +49,10 @@ public partial class WolverineRuntime
             
             if (Options.Durability.DurabilityAgentEnabled)
             {
-                // TODO -- this needs to be async!
-                Storage.Initialize(this);
+                foreach (var store in await _stores.Value.FindAllAsync())
+                {
+                    store.Initialize(this);
+                }
             }
 
             // This MUST be done before the messaging transports are started up
@@ -96,22 +103,20 @@ public partial class WolverineRuntime
         }
     }
 
+    private bool _hasMigratedStorage;
+
     private async Task tryMigrateStorage()
     {
+        if (_hasMigratedStorage) return;
+        
         if (!Options.Durability.DurabilityAgentEnabled) return;
         
         if (Options.AutoBuildMessageStorageOnStartup != AutoCreate.None && Storage is not NullMessageStore)
         {
-            await Storage.Admin.MigrateAsync();
+            await _stores.Value.MigrateAsync();
         }
 
-        if (Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
-        {
-            foreach (var ancillaryStore in AncillaryStores)
-            {
-                await ancillaryStore.Admin.MigrateAsync();
-            }
-        }
+        _hasMigratedStorage = true;
     }
 
     private bool _hasAppliedAsyncExtensions = false;
@@ -161,6 +166,8 @@ public partial class WolverineRuntime
         }
     }
 
+    public StopMode StopMode { get; set; } = StopMode.Normal;
+    
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         if (_hasStopped)
@@ -168,18 +175,18 @@ public partial class WolverineRuntime
             return;
         }
 
-        _agentCancellation.Cancel();
+        await _agentCancellation.CancelAsync();
 
         _hasStopped = true;
 
         // Latch health checks ASAP
         DisableHealthChecks();
         
-        if (_persistence.IsValueCreated)
+        if (_stores.IsValueCreated && StopMode == StopMode.Normal)
         {
             try
             {
-                await Storage.DrainAsync();
+                await _stores.Value.DrainAsync();
             }
             catch (TaskCanceledException)
             {
@@ -189,7 +196,7 @@ public partial class WolverineRuntime
             try
             {
                 // New to 3.0, try to release any ownership on the way out. Do this *after* the drain
-                await Storage.Admin.ReleaseAllOwnershipAsync(DurabilitySettings.AssignedNodeNumber);
+                await _stores.Value.ReleaseAllOwnershipAsync(DurabilitySettings.AssignedNodeNumber);
             }
             catch (ObjectDisposedException)
             {
@@ -197,20 +204,25 @@ public partial class WolverineRuntime
             }
         }
 
-        // This MUST be called before draining the endpoints
-        await teardownAgentsAsync();
+        if (StopMode == StopMode.Normal)
+        {
+            // This MUST be called before draining the endpoints
+            await teardownAgentsAsync();
+            
+            await _endpoints.DrainAsync();
 
-        await _endpoints.DrainAsync();
+            if (_accumulator.IsValueCreated)
+            {
+                await _accumulator.Value.DrainAsync();
+            }
+        }
 
         DurabilitySettings.Cancel();
 
-        try
+        // ReSharper disable once SuspiciousTypeConversion.Global
+        if (Observer is IAsyncDisposable d)
         {
-            // Do this to release pooled connections in Npgsql just in case
-            await Storage.DisposeAsync();
-        }
-        catch (Exception)
-        {
+            await d.DisposeAsync();
         }
     }
 
@@ -228,6 +240,12 @@ public partial class WolverineRuntime
 
     private async Task startMessagingTransportsAsync()
     {
+        // Start up metrics collection
+        if (Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter)
+        {
+            _accumulator.Value.Start();
+        }
+        
         discoverListenersFromConventions();
 
         // No local queues if running in Serverless
@@ -304,6 +322,22 @@ public partial class WolverineRuntime
         Options.Durability.Mode = DurabilityMode.MediatorOnly;
         Options.LightweightMode = true;
 
+        // So that you get valid information in the describe command and other diagnostics
+        foreach (var endpoint in Options.Transports.AllEndpoints())
+        {
+            endpoint.Compile(this);
+        }
+
         return StartAsync(CancellationToken.None);
     }
+}
+
+public enum StopMode
+{
+    Normal,
+    
+    /// <summary>
+    /// Honestly, don't use this except in Wolverine testing...
+    /// </summary>
+    Quick
 }

@@ -352,7 +352,7 @@ public class EnvelopeTests
             ScheduleDelay = 1.Days()
         };
 
-        envelope.ScheduledTime.Value.Date.ShouldBe(DateTime.Today.AddDays(1));
+        envelope.ScheduledTime.Value.Date.ShouldBe(DateTime.UtcNow.AddDays(1).Date);
         envelope.ScheduleDelay.ShouldBe(1.Days());
     }
 
@@ -364,7 +364,7 @@ public class EnvelopeTests
             DeliverWithin = 1.Days()
         };
 
-        envelope.DeliverBy.Value.Date.ShouldBe(DateTime.Today.AddDays(1));
+        envelope.DeliverBy.Value.Date.ShouldBe(DateTime.UtcNow.AddDays(1).Date);
         envelope.DeliverWithin.ShouldBe(1.Days());
     }
 
@@ -434,18 +434,80 @@ public class EnvelopeTests
         dict["org.unit"].ShouldBe("foo");
     }
 
-    [Fact]
-    public void propagate_tenant_id_in_ForSend()
+    public class when_building_delivery_options_to_mimic_an_envelope
     {
-        var envelope = new Envelope
+        private readonly Envelope theEnvelope;
+        private readonly DeliveryOptions theOptions;
+        
+        public when_building_delivery_options_to_mimic_an_envelope()
         {
-            Destination = new Uri("local://one"),
-            Message = new Message1(),
-            TenantId = "tenant1"
-        };
+            theEnvelope = ObjectMother.Envelope();
+            theEnvelope.AckRequested = true;
+            theEnvelope.DeduplicationId = Guid.NewGuid().ToString();
+            theEnvelope.DeliverBy = DateTime.Today;
+            theEnvelope.Headers = new Dictionary<string, string?> { { "color", "green" } };
+            theEnvelope.IsResponse = true;
+            theEnvelope.PartitionKey = Guid.NewGuid().ToString();
+            theEnvelope.TenantId = Guid.NewGuid().ToString();
+            theEnvelope.ScheduledTime = DateTime.Today.AddDays(1);
+            theEnvelope.SagaId = Guid.NewGuid().ToString();
 
-        var send = envelope.ForSend(new Message2());
-        send.TenantId.ShouldBe(envelope.TenantId);
+            theOptions = theEnvelope.ToDeliveryOptions();
+        }
+
+        [Fact]
+        public void ack_requested()
+        {
+            theOptions.AckRequested.Value.ShouldBeTrue();
+        }
+
+        [Fact]
+        public void deduplication_id()
+        {
+            theOptions.DeduplicationId.ShouldBe(theEnvelope.DeduplicationId);
+        }
+
+        [Fact]
+        public void deliver_by()
+        {
+            theOptions.DeliverBy.Value.ShouldBe(theEnvelope.DeliverBy.Value);
+        }
+
+        [Fact]
+        public void headers()
+        {
+            theOptions.Headers["color"].ShouldBe("green");
+        }
+
+        [Fact]
+        public void is_response()
+        {
+            theOptions.IsResponse.ShouldBeTrue();
+        }
+
+        [Fact]
+        public void partition_key()
+        {
+            theOptions.PartitionKey.ShouldBe(theEnvelope.PartitionKey);
+        }
+
+        [Fact]
+        public void tenant_id()
+        {
+            theOptions.TenantId.ShouldBe(theEnvelope.TenantId);
+        }
+
+        [Fact]
+        public void scheduled_time()
+        {
+            theOptions.ScheduledTime.Value.ShouldBe(theEnvelope.ScheduledTime.Value);
+        }
+
+        [Fact]
+        public void saga_id()
+        {
+            theOptions.SagaId.ShouldBe(theEnvelope.SagaId);
+        }
     }
 
     public class when_building_an_envelope_for_scheduled_send

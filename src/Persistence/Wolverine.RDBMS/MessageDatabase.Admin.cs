@@ -2,6 +2,7 @@ using System.Data.Common;
 using JasperFx.Core;
 using Weasel.Core;
 using Wolverine.Logging;
+using Wolverine.Persistence.Durability;
 
 namespace Wolverine.RDBMS;
 
@@ -133,6 +134,15 @@ public abstract partial class MessageDatabase<T>
                 .ExecuteNonQueryAsync(_cancellation);
             await tx.CreateCommand($"delete from {SchemaName}.{DatabaseConstants.DeadLetterTable}")
                 .ExecuteNonQueryAsync(_cancellation);
+
+            if (_settings.Role == MessageStoreRole.Main)
+            {
+                await tx.CreateCommand($"delete from {SchemaName}.{DatabaseConstants.AgentRestrictionsTableName}")
+                    .ExecuteNonQueryAsync(_cancellation);
+                
+                await tx.CreateCommand($"delete from {SchemaName}.{DatabaseConstants.NodeRecordTableName}")
+                    .ExecuteNonQueryAsync(_cancellation);
+            }
 
             await tx.CommitAsync(_cancellation);
         }

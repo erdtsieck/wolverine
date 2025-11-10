@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
+using Wolverine.Attributes;
 using Wolverine.Marten;
 
 namespace MartenTests;
@@ -88,6 +89,18 @@ public static class FindLettersHandler
     {
         return new LetterAggregateEnvelope(aggregate);
     }
+    
+    /* ALTERNATIVE VERSION
+    [WolverineHandler]
+    public static LetterAggregateEnvelope Handle2(
+        FindAggregate command, 
+        
+        // Just showing you that you can disable the validation
+        [ReadAggregate(Required = false)] LetterAggregate aggregate)
+    {
+        return aggregate == null ? null : new LetterAggregateEnvelope(aggregate);
+    }
+    */
 }
 
 #endregion

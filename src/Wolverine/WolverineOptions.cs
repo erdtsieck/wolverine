@@ -11,9 +11,11 @@ using Wolverine.Configuration;
 using Wolverine.Persistence;
 using Wolverine.Persistence.MultiTenancy;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports.Local;
+using Wolverine.Transports.Stub;
 
 [assembly: InternalsVisibleTo("Wolverine.Testing")]
 
@@ -35,6 +37,42 @@ public enum MultipleHandlerBehavior
     Separated
 }
 
+public enum WolverineMetricsMode
+{
+    /// <summary>
+    /// Wolverine will publish performance metrics via System.Diagnostics.Meter
+    /// where any Otel tooling can be configured to scrape metrics
+    /// </summary>
+    SystemDiagnosticsMeter,
+    
+    /// <summary>
+    /// Wolverine will accumulate and occasionally publish performance metrics
+    /// via messaging to subscribers configured to listen for Wolverine performance
+    /// data
+    /// </summary>
+    CritterWatch,
+    
+    /// <summary>
+    /// Wolverine will both accumulate and publish metrics information to CritterWatch
+    /// *and* publish metrics via System.Diagnostics.Meter
+    /// </summary>
+    Hybrid
+}
+
+public class MetricsOptions
+{
+    /// <summary>
+    /// How should Wolverine collect and publish metrics about message handling and publications?
+    /// </summary>
+    public WolverineMetricsMode Mode { get; set; } = WolverineMetricsMode.SystemDiagnosticsMeter;
+    
+    /// <summary>
+    /// If using either CritterWatch or Hybrid metrics publishing, this is the period in which
+    /// Wolverine will sample and publish metric data collection. Default is 5 seconds
+    /// </summary>
+    public TimeSpan SamplingPeriod { get; set; } = 5.Seconds();
+}
+
 /// <summary>
 ///     Completely defines and configures a Wolverine application
 /// </summary>
@@ -45,6 +83,7 @@ public sealed partial class WolverineOptions
 
     public WolverineOptions() : this(null)
     {
+        
     }
 
     public WolverineOptions(string? assemblyName)
@@ -77,18 +116,76 @@ public sealed partial class WolverineOptions
         Policies.Add<SideEffectPolicy>();
         Policies.Add<ResponsePolicy>();
         Policies.Add<OutgoingMessagesPolicy>();
+
+        MessagePartitioning = new MessagePartitioningRules(this);
+        
+        InternalRouteSources.Insert(0, Transports.GetOrCreate<StubTransport>());
     }
+
+    public MetricsOptions Metrics { get; } = new();
+
+    /// <summary>
+    /// What is the policy within this application for whether or not it is valid to allow Service Location within
+    /// the generated code for message handlers or HTTP endpoints. Default is AllowedByWarn. Just keep in mind that
+    /// Wolverine really does not want you to use service location if you don't have to!
+    ///
+    /// Please see https://wolverinefx.net/guide/codegen.html for more information
+    /// </summary>
+    public ServiceLocationPolicy ServiceLocationPolicy { get; set; } = ServiceLocationPolicy.AllowedButWarn;
 
     public Uri SubjectUri => new Uri("wolverine://" + ServiceName.Sanitize());
 
     /// <summary>
     /// How should Wolverine treat message handlers for the same message type?
-    /// Default is ClassicCombineIntoOneLogicalHandler, but change this if 
+    /// Default is ClassicCombineIntoOneLogicalHandler, but change this if wanting
+    /// to execute different handlers for the same type of message in different endpoints.
+    ///
+    /// This frequently comes into play with "modular monolith" architectures
     /// </summary>
     public MultipleHandlerBehavior MultipleHandlerBehavior
     {
         get => HandlerGraph.MultipleHandlerBehavior;
         set => HandlerGraph.MultipleHandlerBehavior = value;
+    }
+
+    /// <summary>
+    /// Use to establish rules about determining the message GroupId metadata that
+    /// is used by Wolverine for message sharding or with message transports like Azure Service Bus,
+    /// AWS SQS, or Kafka that respect some kind of "group id"
+    ///
+    /// This will be automatically applied to all outgoing messages, but will never override
+    /// any explicitly defined Envelope.GroupId
+    /// </summary>
+    public MessagePartitioningRules MessagePartitioning { get; } 
+
+    
+    /// For advanced usages, this gives you the ability to register pre-canned message handling
+    /// that does not require any code generation. 
+    /// </summary>
+    /// <param name="messageType"></param>
+    /// <param name="handler"></param>
+    public void AddMessageHandler(Type messageType, IMessageHandler handler)
+    {
+        HandlerGraph.RegisterMessageType(messageType);
+        HandlerGraph.AddMessageHandler(messageType, handler);
+
+        // For error handling and other policies
+        if (handler is MessageHandler h)
+        {
+            h.Chain = new HandlerChain(messageType, HandlerGraph);
+        }
+    }
+
+    /// <summary>
+    /// For advanced usages, this gives you the ability to register pre-canned message handling
+    /// that does not require any code generation. 
+    /// </summary>
+    /// <param name="handler"></param>
+    /// <typeparam name="T"></typeparam>
+    public void AddMessageHandler<T>(MessageHandler<T> handler)
+    {
+        AddMessageHandler(typeof(T), handler);
+        handler.ConfigureChain(handler.Chain); // Yeah, this is 100% a tell, don't ask violation
     }
 
     [IgnoreDescription]
@@ -191,9 +288,9 @@ public sealed partial class WolverineOptions
 
     /// <summary>
     /// Should message failures automatically try to send a failure acknowledgement message back to the
-    /// original caller. Default is true.
+    /// original caller. Default is *false* as of Wolverine 4.6
     /// </summary>
-    public bool EnableAutomaticFailureAcks { get; set; } = true;
+    public bool EnableAutomaticFailureAcks { get; set; } = false;
 
     private void deriveServiceName()
     {
@@ -299,4 +396,10 @@ public sealed partial class WolverineOptions
             _autoBuildMessageStorageOnStartup = jasperfx.ActiveProfile.ResourceAutoCreate;
         }
     }
+    
+    public void RegisterMessageType(Type messageType, string messageAlias)
+    {
+        HandlerGraph.RegisterMessageType(messageType, messageAlias);
+    }
+    
 }

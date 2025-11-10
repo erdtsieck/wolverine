@@ -27,6 +27,22 @@ public interface IPostgresqlBackedPersistence
     IPostgresqlBackedPersistence EnableMessageTransport(Action<PostgresqlPersistenceExpression>? configure = null);
 
     /// <summary>
+    /// Tell Wolverine that the persistence service (Marten? EF Core DbContext? Something else?) of the given
+    /// type should be enrolled in envelope storage with this PostgreSQL database
+    /// </summary>
+    /// <param name="type"></param>
+    /// <returns></returns>
+    IPostgresqlBackedPersistence Enroll(Type type);
+    
+    /// <summary>
+    /// Tell Wolverine that the persistence service (Marten? EF Core DbContext? Something else?) of the given
+    /// type should be enrolled in envelope storage with this PostgreSQL database
+    /// </summary>
+    /// <param name="type"></param>
+    /// <returns></returns>
+    IPostgresqlBackedPersistence Enroll<T>();
+
+    /// <summary>
     /// By default, Wolverine takes the AutoCreate settings from JasperFxOptions, but
     /// you can override the application default for just the PostgreSQL backed queues
     /// and envelope storage tables
@@ -190,32 +206,41 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
         
         var mainSource = DataSource ?? NpgsqlDataSource.Create(ConnectionString);
         var logger = runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>();
-        
-        var defaultStore = new PostgresqlMessageStore(settings, runtime.DurabilitySettings, mainSource,
-            logger, sagaTables);
 
         if (UseMasterTableTenancy)
         {
+            var defaultStore = new PostgresqlMessageStore(settings, runtime.DurabilitySettings, mainSource,
+                logger, sagaTables);
+            
             ConnectionStringTenancy = new MasterTenantSource(defaultStore, runtime.Options);
+            
+            return new MultiTenantedMessageStore(defaultStore, runtime,
+                new PostgresqlTenantedMessageStore(runtime, this, sagaTables){});
+        }
+
+        if (ConnectionStringTenancy != null || DataSourceTenancy != null)
+        {
+            var defaultStore = new PostgresqlMessageStore(settings, runtime.DurabilitySettings, mainSource,
+                logger, sagaTables);
             
             return new MultiTenantedMessageStore(defaultStore, runtime,
                 new PostgresqlTenantedMessageStore(runtime, this, sagaTables));
         }
-        else if (ConnectionStringTenancy != null || DataSourceTenancy != null)
-        {
-            return new MultiTenantedMessageStore(defaultStore, runtime,
-                new PostgresqlTenantedMessageStore(runtime, this, sagaTables));
-        }
+        
+        settings.Role = Role;
 
-        return defaultStore;
+        return new PostgresqlMessageStore(settings, runtime.DurabilitySettings, mainSource,
+            logger, sagaTables);
     }
+    
+    public MessageStoreRole Role { get; set; } = MessageStoreRole.Main;
 
     private DatabaseSettings buildMainDatabaseSettings()
     {
         var settings = new DatabaseSettings
         {
             CommandQueuesEnabled = CommandQueuesEnabled,
-            IsMain = true,
+            Role = MessageStoreRole.Main,
             ConnectionString = ConnectionString,
             DataSource = DataSource,
             ScheduledJobLockId = ScheduledJobLockId,
@@ -245,6 +270,18 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
             }
         }
         return this;
+    }
+
+    public IPostgresqlBackedPersistence Enroll(Type type)
+    {
+        _options.Services.AddSingleton<AncillaryMessageStore>(s => new (type,BuildMessageStore(s.GetRequiredService<IWolverineRuntime>())));
+
+        return this;
+    }
+
+    public IPostgresqlBackedPersistence Enroll<T>()
+    {
+        return Enroll(typeof(T));
     }
 
     IPostgresqlBackedPersistence IPostgresqlBackedPersistence.OverrideAutoCreateResources(AutoCreate autoCreate)

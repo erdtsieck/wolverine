@@ -25,6 +25,7 @@ using Wolverine.Http.Tests.DifferentAssembly.Validation;
 using Wolverine.Http.Transport;
 using Wolverine.Marten;
 using WolverineWebApi;
+using WolverineWebApi.Bugs;
 using WolverineWebApi.Marten;
 using WolverineWebApi.Samples;
 using WolverineWebApi.Things;
@@ -238,8 +239,11 @@ app.MapWolverineEndpoints(opts =>
     // Only want this middleware on endpoints on this one handler
     opts.AddMiddleware(typeof(BeforeAndAfterMiddleware),
         chain => chain.Method.HandlerType == typeof(MiddlewareEndpoints));
+    opts.AddMiddleware(typeof(LoadTodoMiddleware),
+        chain => chain.Method.HandlerType == typeof(UpdateEndpointWithMiddleware));
+    opts.AddPolicy<LoadTodoPolicy>();
 
-#region sample_user_marten_compiled_query_policy
+    #region sample_user_marten_compiled_query_policy
     opts.UseMartenCompiledQueryResultPolicy();
 #endregion
 
@@ -261,6 +265,7 @@ app.MapWolverineEndpoints(opts =>
 
     opts.AddPolicy<StreamCollisionExceptionPolicy>();
 
+    opts.AddPolicy<FrameRearrangeMiddleware.HttpPolicy>();
 
     #region sample_adding_custom_parameter_handling
 

@@ -4,6 +4,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
@@ -20,12 +21,14 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         ImHashMap<Type, IList<IEnvelopeRule>>.Empty;
 
     private readonly IReplyTracker _replyTracker;
+    private readonly MessagePartitioningRules _partitioning;
     private readonly Endpoint _endpoint;
 
-    public MessageRoute(Type messageType, Endpoint endpoint, IReplyTracker replies)
+    public MessageRoute(Type messageType, Endpoint endpoint, IWolverineRuntime runtime)
     {
         IsLocal = endpoint is LocalQueue;
-        _replyTracker = replies;
+        _replyTracker = runtime.Replies;
+        _partitioning = runtime.Options.MessagePartitioning;
 
         if (WolverineSystemPart.WithinDescription)
         {
@@ -96,6 +99,9 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
             envelope.Serializer = runtime.Options.FindSerializer(options.ContentType);
             envelope.ContentType = envelope.Serializer.ContentType;
         }
+
+        // Apply application wide message grouping policies
+        envelope.GroupId = _partitioning.DetermineGroupId(envelope);
 
         foreach (var rule in Rules) rule.Modify(envelope);
 

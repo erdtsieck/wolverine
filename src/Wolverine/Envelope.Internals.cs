@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using JasperFx.Core;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
@@ -35,7 +36,7 @@ public partial class Envelope
         Serializer = message is ISerializable ? IntrinsicSerializer.Instance : agent.Endpoint.DefaultSerializer;
         ContentType = Serializer!.ContentType;
         Destination = agent.Destination;
-        ReplyUri = agent.ReplyUri;
+        ReplyUri = agent.ReplyUri?.MaybeCorrectScheme(agent.Destination.Scheme);
     }
 
     internal Envelope(object message, IMessageSerializer writer)
@@ -102,6 +103,11 @@ public partial class Envelope
     }
 
     /// <summary>
+    /// How long did the current execution take?
+    /// </summary>
+    internal long ExecutionTime => _timer.ElapsedMilliseconds;
+
+    /// <summary>
     /// </summary>
     /// <returns></returns>
     internal TagList ToMetricsHeaders()
@@ -166,7 +172,14 @@ public partial class Envelope
     /// <returns></returns>
     internal Envelope CreateForResponse(object message)
     {
-        var child = ForSend(message);
+        var child = new Envelope
+        {
+            Message = message,
+            CorrelationId = Id.ToString(),
+            ConversationId = Id,
+            SagaId = SagaId,
+            TenantId = TenantId
+        };
         child.CorrelationId = CorrelationId;
         child.ConversationId = Id;
 
@@ -183,19 +196,6 @@ public partial class Envelope
         }
 
         return child;
-    }
-
-    [Obsolete("not really used")]
-    internal Envelope ForSend(object message)
-    {
-        return new Envelope
-        {
-            Message = message,
-            CorrelationId = Id.ToString(),
-            ConversationId = Id,
-            SagaId = SagaId,
-            TenantId = TenantId
-        };
     }
 
     internal ValueTask StoreAndForwardAsync()
@@ -333,5 +333,29 @@ public partial class Envelope
     internal bool IsFromLocalDurableQueue()
     {
         return Sender is DurableLocalQueue;
+    }
+
+    internal void MaybeCorrectReplyUri()
+    {
+        if (ReplyUri != null && Destination != null)
+        {
+            ReplyUri = ReplyUri.MaybeCorrectScheme(Destination.Scheme);
+        }
+    }
+
+    internal DeliveryOptions ToDeliveryOptions()
+    {
+        return new DeliveryOptions
+        {
+            AckRequested = AckRequested,
+            DeduplicationId = DeduplicationId,
+            DeliverBy = DeliverBy,
+            Headers = Headers,
+            IsResponse = IsResponse,
+            PartitionKey = PartitionKey,
+            TenantId = TenantId,
+            ScheduledTime = ScheduledTime,
+            SagaId = SagaId
+        };
     }
 }

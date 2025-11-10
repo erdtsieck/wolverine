@@ -99,7 +99,7 @@ public partial class RavenDbMessageStore : IMessageInbox
         await session.SaveChangesAsync();
     }
 
-    public Task ScheduleJobAsync(Envelope envelope)
+    public Task RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
     {
         envelope.Status = EnvelopeStatus.Scheduled;
         envelope.OwnerId = TransportConstants.AnyNode;
@@ -165,31 +165,6 @@ public partial class RavenDbMessageStore : IMessageInbox
         });
         
         var op = await _store.Operations.SendAsync(operation);
-        await op.WaitForCompletionAsync();
-    }
-
-    public async Task ReleaseIncomingAsync(int ownerId)
-    {
-        using var session = _store.OpenAsyncSession();
-
-        var query = new IndexQuery
-        {
-            Query = $@"
-from IncomingMessages as m
-where m.OwnerId = $owner
-update
-{{
-    m.OwnerId = 0
-}}",
-            WaitForNonStaleResults = true,
-            WaitForNonStaleResultsTimeout = 10.Seconds(),
-            QueryParameters = new()
-            {
-                {"owner", ownerId}
-            }
-        };
-
-        var op = await _store.Operations.SendAsync(new PatchByQueryOperation(query));
         await op.WaitForCompletionAsync();
     }
 

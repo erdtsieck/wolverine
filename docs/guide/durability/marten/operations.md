@@ -6,11 +6,6 @@ handlers
 :::
 
 ::: info
-This integration includes full support for the [storage action side effects](/guide/handlers/side-effects.html#storage-side-effects)
-model when using Marten with Wolverine.
-:::
-
-::: tip
 This integration also includes full support for the [storage action side effects](/guide/handlers/side-effects.html#storage-side-effects)
 model when using Marten~~~~ with Wolverine.
 :::
@@ -29,7 +24,7 @@ public interface IMartenOp : ISideEffect
     void Execute(IDocumentSession session);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/Wolverine.Marten/IMartenOp.cs#L17-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imartenop' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/Wolverine.Marten/IMartenOp.cs#L18-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imartenop' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The built in side effects can all be used from the `MartenOps` static class like this HTTP endpoint example:

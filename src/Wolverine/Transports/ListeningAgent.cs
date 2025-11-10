@@ -16,7 +16,7 @@ public interface IListenerCircuit
     ValueTask PauseAsync(TimeSpan pauseTime);
     ValueTask StartAsync();
 
-    void EnqueueDirectly(IEnumerable<Envelope> envelopes);
+    Task EnqueueDirectlyAsync(IEnumerable<Envelope> envelopes);
 }
 
 public interface IListeningAgent : IListenerCircuit
@@ -84,8 +84,11 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
         _receiver?.Dispose();
 
-        _circuitBreaker?.SafeDispose();
-
+        if (_circuitBreaker != null)
+        {
+            await _circuitBreaker.DisposeAsync();
+        }
+        
         Listener = null;
         _receiver = null;
     }
@@ -93,22 +96,32 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     public void Dispose()
     {
         _receiver?.Dispose();
-        _circuitBreaker?.SafeDispose();
+        _circuitBreaker?.SafeDisposeSynchronously();
         _backPressureAgent?.SafeDispose();
     }
 
     public int QueueCount => _receiver is ILocalQueue q ? q.QueueCount : 0;
 
-    public void EnqueueDirectly(IEnumerable<Envelope> envelopes)
+    public async Task EnqueueDirectlyAsync(IEnumerable<Envelope> envelopes)
     {
-        if (_receiver is ILocalQueue queue)
+        if (_receiver is BufferedReceiver)
+        {
+            // Agent is latched if listener is null
+            await _receiver.ReceivedAsync(new RetryOnInlineChannelCallback(Listener, _runtime), envelopes.ToArray());
+        }
+        else if (_receiver is ILocalQueue queue)
         {
             var uniqueNodeId = _runtime.DurabilitySettings.AssignedNodeNumber;
             foreach (var envelope in envelopes)
             {
                 envelope.OwnerId = uniqueNodeId;
-                queue.Enqueue(envelope);
+                await queue.EnqueueAsync(envelope);
             }
+        }
+        else if (_receiver is InlineReceiver inline)
+        {
+            // Agent is latched if listener is null
+            await inline.ReceivedAsync(new RetryOnInlineChannelCallback(Listener, _runtime), envelopes.ToArray());
         }
         else
         {
@@ -139,6 +152,8 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         {
             using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.StoppingListener);
             activity?.SetTag(WolverineTracing.EndpointAddress, Uri);
+
+            if (Listener == null) return;
             
             await Listener.StopAsync();
             await _receiver!.DrainAsync();
@@ -197,7 +212,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         try
         {
             using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.PausingListener);
-            activity?.SetTag(WolverineTracing.EndpointAddress, Listener.Address);
+            activity?.SetTag(WolverineTracing.EndpointAddress, Uri);
             await StopAndDrainAsync();
         }
         catch (Exception e)
@@ -232,10 +247,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         {
             _logger.LogError(e, "Unable to cleanly stop the listener for {Uri}", Uri);
         }
-
-        // Important, to make the processing truly restart, you need to rebuild the receiver
-        _receiver?.SafeDispose();
-        _receiver = null;
+        
         Listener = null;
 
         Status = ListeningStatus.TooBusy;
@@ -289,5 +301,48 @@ internal class Restarter : IDisposable
     {
         _cancellation.Cancel();
         _task.SafeDispose();
+    }
+}
+
+internal class RetryOnInlineChannelCallback : IListener
+{
+    private readonly IListener _inner;
+    private readonly IWolverineRuntime _runtime;
+
+    public RetryOnInlineChannelCallback(IListener inner, IWolverineRuntime runtime)
+    {
+        _inner = inner;
+        _runtime = runtime;
+    }
+
+    public IHandlerPipeline? Pipeline => _inner.Pipeline;
+    public async ValueTask CompleteAsync(Envelope envelope)
+    {
+        try
+        {
+            await _runtime.Storage.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
+        }
+        catch (Exception e)
+        {
+            _runtime.Logger.LogError(e, "Error trying to mark a message as handled in the transactional inbox");
+        }
+
+        await _inner.CompleteAsync(envelope);
+    }
+
+    public ValueTask DeferAsync(Envelope envelope)
+    {
+        return _inner.DeferAsync(envelope);
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        return new ValueTask();
+    }
+
+    public Uri Address => _inner.Address;
+    public ValueTask StopAsync()
+    {
+        return new ValueTask();
     }
 }

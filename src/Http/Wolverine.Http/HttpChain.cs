@@ -2,9 +2,11 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.Json;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.CodeGeneration.Services;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
@@ -15,14 +17,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.FSharp.Core;
-using Wolverine.Codegen;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Metadata;
 using Wolverine.Http.Policies;
+using Wolverine.Persistence;
 using Wolverine.Runtime;
-using ServiceContainer = Wolverine.Runtime.ServiceContainer;
+using ServiceContainer = JasperFx.ServiceContainer;
 
 namespace Wolverine.Http;
 
@@ -261,7 +262,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public bool HasResourceType()
     {
-        return ResourceType != null && ResourceType != typeof(void) && ResourceType != typeof(Unit);
+        return ResourceType != null && ResourceType != typeof(void) && ResourceType.FullName != "Microsoft.FSharp.Core.Unit";
     }
 
     public override bool ShouldFlushOutgoingMessages()
@@ -281,12 +282,35 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public override Type? InputType()
     {
-        return HasRequestType ? RequestType : null;
+        return HasRequestType ? RequestType : ComplexQueryStringType;
     }
 
     public override Frame[] AddStopConditionIfNull(Variable variable)
     {
         return [new SetStatusCodeAndReturnIfEntityIsNullFrame(variable)];
+    }
+
+    public override Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement)
+    {
+        var message = requirement.MissingMessage ?? $"Unknown {data.VariableType.NameInCode()} with identity {{Id}}";
+        
+        // TODO -- want to use WolverineOptions here for a default
+        switch (requirement.OnMissing)
+        {
+            case OnMissing.Simple404:
+                Metadata.Produces(404);
+                return [new SetStatusCodeAndReturnIfEntityIsNullFrame(data)];
+                
+            case OnMissing.ProblemDetailsWith400:
+                Metadata.Produces(400, contentType: "application/problem+json");
+                return [new WriteProblemDetailsIfNull(data, identity, message, 400)];
+            case OnMissing.ProblemDetailsWith404:
+                Metadata.Produces(404, contentType: "application/problem+json");
+                return [new WriteProblemDetailsIfNull(data, identity, message, 404)];
+                
+            default:
+                return [new ThrowRequiredDataMissingExceptionFrame(data, identity, message)];
+        }
     }
 
     public override string ToString()
@@ -417,6 +441,23 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         }
 
         return variable;
+    }
+ 
+    public bool FindQuerystringVariable(Type variableType, string routeOrParameterName, [NotNullWhen(true)]out Variable? variable)
+    {
+        var matched = Method.Method.GetParameters()
+            .FirstOrDefault(x => x.ParameterType == variableType && x.Name != null && x.Name.EqualsIgnoreCase(routeOrParameterName));
+        if (matched is not null)
+        {
+            variable = TryFindOrCreateQuerystringValue(matched);
+            if (variable is not null)
+            {
+                return true;
+            }
+        }
+
+        variable = null;
+        return false;
     }
 
     public HttpElementVariable? TryFindOrCreateQuerystringValue(ParameterInfo parameter)
@@ -625,6 +666,8 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public bool HasRequestType => RequestType != null && RequestType != typeof(void);
 
     public bool IsFormData { get; internal set; }
+    public Type? ComplexQueryStringType { get; set; }
+    public ServiceProviderSource ServiceProviderSource { get; set; } = ServiceProviderSource.IsolatedAndScoped;
 
     internal Variable BuildJsonDeserializationVariable()
     {
@@ -635,4 +678,14 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     {
         _parent.ApplyParameterMatching(this, call);
     }
+
+    public bool TryReplaceServiceProvider(out Variable serviceProvider)
+    {
+        serviceProvider = default!;
+        if (ServiceProviderSource == ServiceProviderSource.IsolatedAndScoped) return false;
+
+        serviceProvider = new Variable(typeof(IServiceProvider), $"httpContext.{nameof(HttpContext.RequestServices)}");
+        return true;
+    }
 }
+

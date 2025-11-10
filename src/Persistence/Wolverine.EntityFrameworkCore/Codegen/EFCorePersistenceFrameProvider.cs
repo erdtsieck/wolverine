@@ -1,4 +1,5 @@
 using ImTools;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -28,6 +29,8 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         persistenceService = dbContextType!;
         return dbContextType != null;
     }
+    
+    public Frame[] DetermineFrameToNullOutMaybeSoftDeleted(Variable entity) => [];
 
     public Type DetermineSagaIdType(Type sagaType, IServiceContainer container)
     {
@@ -68,12 +71,19 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         call.CommentText = "Committing any pending entity changes to the database";
         call.ReturnVariable!.OverrideName(call.ReturnVariable.Usage + "1");
 
-        return call;
+        return new WrapSagaConcurrencyException(saga, call);
     }
 
     public Frame DetermineUpdateFrame(Variable saga, IServiceContainer container)
     {
-        return new CommentFrame("No explicit update necessary with EF Core");
+        var version = saga.VariableType.GetProperty("Version");
+        if (version == null || !(version.CanRead && version.CanWrite))
+        {
+            return new CommentFrame("No explicit update necessary with EF Core without a Version property");
+        }
+        
+        var dbContextType = DetermineDbContextType(saga.VariableType, container);
+        return new IncrementSagaVersionIfNecessary(dbContextType, saga);
     }
 
     public Frame DetermineDeleteFrame(Variable sagaId, Variable saga, IServiceContainer container)
@@ -111,6 +121,13 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         chain.Tags.Add(UsingEfCoreTransaction, true);
 
         var dbContextType = DetermineDbContextType(chain, container);
+        var runtime = container.Services.GetRequiredService<IWolverineRuntime>();
+        if (runtime.Stores.HasAncillaryStoreFor(dbContextType))
+        {
+            var frame = typeof(ApplyAncillaryStoreFrame<>).CloseAndBuildAs<Frame>(dbContextType);
+            chain.Middleware.Insert(0, frame);
+        }
+        
         if (isMultiTenanted(container, dbContextType))
         {
             var createContext = typeof(CreateTenantedDbContext<>).CloseAndBuildAs<Frame>(dbContextType);
@@ -120,6 +137,8 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         {
             chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbContextType));
         }
+        
+        
 
         var saveChangesAsync =
             dbContextType.GetMethod(nameof(DbContext.SaveChangesAsync), [typeof(CancellationToken)]);
@@ -337,6 +356,74 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             _dbContext = chain.FindVariable(_dbContextType);
             yield return _dbContext;
         }
+    }
+
+    public class IncrementSagaVersionIfNecessary : SyncFrame
+    {
+        private readonly Type _dbContextType;
+        private readonly Variable _saga;
+        private Variable? _context;
+
+        public IncrementSagaVersionIfNecessary(Type dbContextType, Variable saga)
+        {
+            _dbContextType = dbContextType;
+            _saga = saga;
+        }
+
+        public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+        {
+            yield return _saga;
+
+            _context = chain.FindVariable(_dbContextType);
+            yield return _context;
+        }
+
+        public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+        {
+            writer.WriteLine("");
+            writer.WriteComment("If the saga state changed, then increment its version to support optimistic concurrency");
+            writer.WriteLine($"if ({_context!.Usage}.Entry({_saga.Usage}).State == {typeof(EntityState).FullName}.Modified) {{ {_saga.Usage}.Version += 1; }}");
+
+            Next?.GenerateCode(method, writer);
+        }
+    }
+
+    public class WrapSagaConcurrencyException : SyncFrame
+    {
+        private readonly Variable _saga;
+        private readonly Frame _frame;
+
+        public WrapSagaConcurrencyException(Variable saga, Frame frame)
+        {
+            _saga = saga;
+            _frame = frame;
+        }
+
+        public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+        {
+            foreach (var variable in _frame.FindVariables(chain)) yield return variable;
+        }
+
+        public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+        {
+            writer.Write("BLOCK:try");
+            _frame.GenerateCode(method, writer);
+            writer.FinishBlock();
+
+            writer.Write($"BLOCK:catch ({typeof(DbUpdateConcurrencyException).FullNameInCode()} error)");
+            writer.WriteComment("Only intercepts concurrency error on the saga itself");
+
+            writer.Write($"BLOCK:if ({typeof(Enumerable).FullNameInCode()}.Any(error.Entries, e => e.Entity == {_saga.Usage}))");
+            writer.WriteLine($"throw new {typeof(SagaConcurrencyException).FullNameInCode()}($\"Saga of type {_saga.VariableType.FullNameInCode()} and identity {SagaChain.SagaIdVariableName} cannot be updated because of optimistic concurrency violations\");");
+            writer.FinishBlock();
+
+            writer.WriteComment("Rethrow any other exception");
+            writer.WriteLine("throw;");
+            writer.FinishBlock();
+
+            Next?.GenerateCode(method, writer);
+        }
+
     }
 
     public class CommitDbContextTransactionIfNecessary : SyncFrame

@@ -1,4 +1,5 @@
 using System.Reflection;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -55,7 +56,7 @@ internal class RouteParameterStrategy : IParameterStrategy
 
     public static bool CanParse(Type argType)
     {
-        return TypeOutputs.ContainsKey(argType) || argType.IsEnum;
+        return TypeOutputs.ContainsKey(argType) || argType.IsEnum || argType.GetMethods().Any( x=> x.Name == "TryParse");
     }
 
     public static void TryApplyRouteVariables(HttpChain chain, MethodCall call)

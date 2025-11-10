@@ -1,4 +1,5 @@
 using System.Reflection;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -41,6 +42,17 @@ public class SagaChain : HandlerChain
         }
 
         SagaIdMember = DetermineSagaIdMember(MessageType, SagaType);
+    }
+
+    internal override bool TryInferMessageIdentity(out PropertyInfo? property)
+    {
+        property = SagaIdMember as PropertyInfo;
+        return property != null;
+    }
+
+    protected override void validateAgainstInvalidSagaMethods(IGrouping<Type, HandlerCall> grouping)
+    {
+        // Nothing
     }
 
     protected override void tryAssignStickyEndpoints(HandlerCall handlerCall, WolverineOptions options)
@@ -88,6 +100,13 @@ public class SagaChain : HandlerChain
 
         ExistingCalls = findByNames(Orchestrate, Orchestrates, StartOrHandle, StartsOrHandles, Handle, Handles,
             Consume, Consumes);
+
+        var statics = ExistingCalls.Where(x => x.Method.IsStatic);
+        if (statics.Any())
+        {
+            throw new InvalidSagaException(
+                $"It is not legal to use static methods to operate on existing sagas. Use NotFound() for handling non-existent sagas for the identity");
+        }
 
         Handlers.Clear();
 

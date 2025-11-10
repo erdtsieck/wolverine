@@ -16,7 +16,7 @@ public class OutboxedSessionFactory<T> : OutboxedSessionFactory, ISessionFactory
         _store = store;
         _factory = this;
 
-        MessageStore = runtime.AncillaryStores.OfType<IAncillaryMessageStore<T>>().Single();
+        MessageStore = runtime.FindAncillaryStoreForMarkerType(typeof(T));
     }
 
     public IQuerySession QuerySession()
@@ -51,7 +51,6 @@ public class OutboxedSessionFactory
         _factory = factory;
         _store = store;
         
-        // TODO -- this does not work with ancillary stores
         _shouldPublishEvents = runtime.TryFindExtension<MartenIntegration>()?.UseFastEventForwarding ?? false;
 
         MessageStore = runtime.Storage;

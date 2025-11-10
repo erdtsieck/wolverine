@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using JasperFx;
+using Microsoft.Extensions.Logging;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
@@ -13,7 +14,7 @@ public class HandlerChainTests
     public void the_default_log_level_is_information()
     {
         var chain = HandlerChain.For<Target>(x => x.Go(null), null);
-        chain.ExecutionLogLevel.ShouldBe(LogLevel.Information);
+        chain.SuccessLogLevel.ShouldBe(LogLevel.Information);
     }
 
     [Fact]

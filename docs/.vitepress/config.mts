@@ -1,6 +1,7 @@
 import { withMermaid } from "vitepress-plugin-mermaid"
-import { DefaultTheme, UserConfig } from 'vitepress'
+import { defineConfig, type DefaultTheme, type UserConfig } from 'vitepress'
 import llmstxt from 'vitepress-plugin-llms'
+import blockEmbedPlugin from 'markdown-it-block-embed'
 
 const config: UserConfig<DefaultTheme.Config> = {
     base: '/',
@@ -61,7 +62,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                     text: 'Introduction',
                     collapsed: false,
                     items: [
-                        {text: 'What is Wolverine?', link: '/introduction/whatiswolverine'},
+                        {text: 'What is Wolverine?', link: '/introduction/what-is-wolverine'},
                         {text: 'Getting Started', link: '/introduction/getting-started'},
                         {text: 'Support Policy', link: '/introduction/support-policy'},
                         {text: 'Wolverine for MediatR Users', link: '/introduction/from-mediatr'},
@@ -78,7 +79,10 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Vertical Slice Architecture', link: '/tutorials/vertical-slice-architecture'},
                         {text: 'Modular Monoliths', link: '/tutorials/modular-monolith'},
                         {text: 'Event Sourcing and CQRS with Marten', link: '/tutorials/cqrs-with-marten'},
-                        {text: 'Railway Programming with Wolverine', link: '/tutorials/railway-programming'}
+                        {text: 'Railway Programming with Wolverine', link: '/tutorials/railway-programming'},
+                        {text: 'Interoperability with Non-Wolverine Systems', link: '/tutorials/interop'},
+                        {text: 'Leader Election and Agents', link: '/tutorials/leader-election'},
+                        {text: 'Dealing with Concurrency', link:' /tutorials/concurrency'}
                     ]
                 },
                 {
@@ -163,7 +167,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                         {text: 'Dead Letter Queues', link:'/guide/messaging/transports/sqs/deadletterqueues'},
                                         {text: 'Configuring Queues', link:'/guide/messaging/transports/sqs/queues'},
                                         {text: 'Conventional Routing', link:'/guide/messaging/transports/sqs/conventional-routing'},
-                                        {text: 'Interoperability', link:'/guide/messaging/transports/sqs/interoperability'}
+                                        {text: 'Interoperability', link:'/guide/messaging/transports/sqs/interoperability'},
+                                        {text: 'MessageAttributes', link:'/guide/messaging/transports/sqs/message-attributes'}
                                     ]},
                                 {text: 'Amazon SNS', link: '/guide/messaging/transports/sns'},
                                 {text: 'TCP', link: '/guide/messaging/transports/tcp'},
@@ -179,9 +184,12 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'PostgreSQL', link: '/guide/messaging/transports/postgresql'},
                                 {text: 'MQTT', link: '/guide/messaging/transports/mqtt'},
                                 {text: 'Kafka', link: '/guide/messaging/transports/kafka'},
+                                {text: 'SignalR', link: '/guide/messaging/transports/signalr'},
+                                {text: 'Redis', link: '/guide/messaging/transports/redis'},
                                 {text: 'External Database Tables', link: '/guide/messaging/transports/external-tables'}
                             ]
                         },
+                        {text: 'Partitioned Sequential Messaging', link: '/guide/messaging/partitioning'},
                         {text: 'Endpoint Specific Operations', link: '/guide/messaging/endpoint-operations'},
                         {text: 'Broadcast to a Specific Topic', link: '/guide/messaging/broadcast-to-topic'},
                         {text: 'Message Expiration', link: '/guide/messaging/expiration'},
@@ -256,7 +264,10 @@ const config: UserConfig<DefaultTheme.Config> = {
         }
     },
     markdown: {
-        linkify: false
+        linkify: false,
+        config: (md) => {
+            md.use(blockEmbedPlugin)
+        }
     },
     ignoreDeadLinks: true,
     vite: {
@@ -264,4 +275,4 @@ const config: UserConfig<DefaultTheme.Config> = {
     }
 }
 
-export default withMermaid(config);
+export default defineConfig(withMermaid(config));

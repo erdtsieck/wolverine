@@ -1,6 +1,10 @@
+using System.Text.Json;
+using Confluent.Kafka;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using JasperFx.Resources;
+using Wolverine.Util;
+
 namespace Wolverine.Kafka.Tests;
 
 public class DocumentationSamples
@@ -71,12 +75,15 @@ public class DocumentationSamples
                     
                     // Override the consumer configuration for only this 
                     // topic
+                    // This is NOT combinatorial with the ConfigureConsumers() call above
+                    // and completely replaces the parent configuration
                     .ConfigureConsumer(config =>
                     {
                         // This will also set the Envelope.GroupId for any
                         // received messages at this topic
                         config.GroupId = "foo";
-                        
+                        config.BootstrapServers = "localhost:9092";
+
                         // Other configuration
                     });
 
@@ -88,6 +95,34 @@ public class DocumentationSamples
                 // referenced Kafka topics exist at application start up
                 // time
                 opts.Services.AddResourceSetupOnStartup();
+            }).StartAsync();
+
+        #endregion
+    }
+
+    public static async Task use_named_brokers()
+    {
+        #region sample_using_multiple_kafka_brokers
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseKafka("localhost:9092");
+                opts.AddNamedKafkaBroker(new BrokerName("americas"), "americas-kafka:9092");
+                opts.AddNamedKafkaBroker(new BrokerName("emea"), "emea-kafka:9092");
+
+                // Just publish all messages to Kafka topics
+                // based on the message type (or message attributes)
+                // This will get fancier in the near future
+                opts.PublishAllMessages().ToKafkaTopicsOnNamedBroker(new BrokerName("americas"));
+
+                // Or explicitly make subscription rules
+                opts.PublishMessage<ColorMessage>()
+                    .ToKafkaTopicOnNamedBroker(new BrokerName("emea"), "colors");
+
+                // Listen to topics
+                opts.ListenToKafkaTopicOnNamedBroker(new BrokerName("americas"), "red");
+                // Other configuration
             }).StartAsync();
 
         #endregion
@@ -108,3 +143,49 @@ public static class KafkaInstrumentation
 }
 
 #endregion
+
+#region sample_OurKafkaJsonMapper
+
+// Simplistic envelope mapper that expects every message to be of
+// type "T" and serialized as JSON that works perfectly well w/ our
+// application's default JSON serialization
+public class OurKafkaJsonMapper<TMessage> : IKafkaEnvelopeMapper
+{
+    // Wolverine needs to know the 
+    private readonly string _messageTypeName = typeof(TMessage).ToMessageTypeName();
+
+    // Map the Wolverine Envelope structure to the outgoing Kafka structure
+    public void MapEnvelopeToOutgoing(Envelope envelope, Message<string, byte[]> outgoing)
+    {
+        // We'll come back to this later...
+        throw new NotSupportedException();
+    }
+
+    // Map the incoming message from Kafka to the incoming Wolverine envelope
+    public void MapIncomingToEnvelope(Envelope envelope, Message<string, byte[]> incoming)
+    {
+        // We're making an assumption here that only one type of message
+        // is coming in on this particular Kafka topic, so we're telling
+        // Wolverine what the message type is according to Wolverine's own
+        // message naming scheme
+        envelope.MessageType = _messageTypeName;
+
+        // Tell Wolverine to use JSON serialization for the message 
+        // data
+        envelope.ContentType = "application/json";
+
+        // Put the raw binary data right on the Envelope where
+        // Wolverine "knows" how to get at it later
+        envelope.Data = incoming.Value;
+    }
+}
+
+#endregion
+
+/*
+// Who knows, maybe the upstream app uses a different JSON naming
+// scheme than our .NET message types, so let's have the ability
+// to specify JSON serialization policies just in case
+_options = options;
+*/
+

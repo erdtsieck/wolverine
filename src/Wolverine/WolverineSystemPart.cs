@@ -1,14 +1,17 @@
+using System.Reflection;
 using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core.Reflection;
 using JasperFx.Resources;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
+using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.ErrorHandling.Matches;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports.Local;
+using Wolverine.Util;
 
 namespace Wolverine;
 
@@ -49,19 +52,32 @@ internal class WolverineSystemPart : SystemPartBase
 
         if (!messageTypes.Any())
         {
-            AnsiConsole.Markup("[gray]No message routes[/]");
+            AnsiConsole.Markup("[gray]No message types found");
             return;
         }
 
-        var table = new Table(){Title = new TableTitle("Message Routing"){Style = new Style(decoration:Decoration.Bold)}}.AddColumns("Message Type", "Destination", "Content Type");
-        foreach (var messageType in messageTypes.OrderBy(x => x.FullName))
+        var table = new Table(){Title = new TableTitle("Message Routing")
+        {
+            Style = new Style(decoration:Decoration.Bold)
+        }}.AddColumns(".NET Type", "Message Type Alias", "Destination", "Content Type");
+        foreach (var messageType in messageTypes.Where(x => x.Assembly != Assembly.GetExecutingAssembly()).OrderBy(x => x.FullName))
         {
             var routes = _runtime.RoutingFor(messageType).Routes;
-            foreach (var route in routes.OfType<MessageRoute>())
+            if (routes.Any())
             {
-                table.AddRow(messageType.FullNameInCode(), route.Uri.ToString(),
-                    route.Serializer?.ContentType ?? "application/json");
+                foreach (var route in routes.OfType<MessageRoute>())
+                {
+                    table.AddRow(messageType.FullNameInCode(), messageType.ToMessageTypeName(), route.Uri.ToString(),
+                        route.Serializer?.ContentType ?? "application/json");
+                }
             }
+            else
+            {
+                table.AddRow(messageType.FullNameInCode(), messageType.ToMessageTypeName(), "No Routes",
+                    "n/a");
+            }
+            
+
         }
 
         AnsiConsole.Write(table);
@@ -107,7 +123,7 @@ internal class WolverineSystemPart : SystemPartBase
         table.AddColumn("Uri");
         table.AddColumn("Name");
         table.AddColumn("Mode");
-        table.AddColumn("Execution");
+        table.AddColumn(nameof(Endpoint.MaxDegreeOfParallelism));
         table.AddColumn("Serializers");
 
         var listeners = _runtime
@@ -123,7 +139,7 @@ internal class WolverineSystemPart : SystemPartBase
                 listener.Uri.ToString(),
                 listener.EndpointName,
                 listener.Mode.ToString(),
-                listener.ExecutionDescription(),
+                listener.MaxDegreeOfParallelism.ToString(),
                 listener.SerializerDescription(_runtime.Options)
             );
         }
@@ -172,34 +188,29 @@ internal class WolverineSystemPart : SystemPartBase
     }
     
 
-    public override ValueTask<IReadOnlyList<IStatefulResource>> FindResources()
+    public override async ValueTask<IReadOnlyList<IStatefulResource>> FindResources()
     {
         var list = new List<IStatefulResource>();
         
         // These have to run first. Right now, the only options are for building multi-tenanted
         // databases with EF Core
         list.AddRange(_runtime.Services.GetServices<IResourceCreator>());
-        
-        if (_runtime.Options.ExternalTransportsAreStubbed) return new ValueTask<IReadOnlyList<IStatefulResource>>(list);
 
-        foreach (var transport in _runtime.Options.Transports)
+        if (!_runtime.Options.ExternalTransportsAreStubbed)
         {
-            if (transport.TryBuildStatefulResource(_runtime, out var resource))
+            foreach (var transport in _runtime.Options.Transports)
             {
-                list.Add(resource!);
+                if (transport.TryBuildStatefulResource(_runtime, out var resource))
+                {
+                    list.Add(resource!);
+                }
             }
         }
 
-        if (_runtime.Storage is not NullMessageStore)
-        {
-            list.Add(new MessageStoreResource(_runtime.Options, _runtime.Storage));
-        }
+        var stores = await _runtime.Stores.FindAllAsync();
+        
+        list.AddRange(stores.Select(store => new MessageStoreResource(_runtime.Options, store)));
 
-        foreach (var store in _runtime.AncillaryStores)
-        {
-            list.Add(new MessageStoreResource(_runtime.Options, store));
-        }
-
-        return new ValueTask<IReadOnlyList<IStatefulResource>>(list);
+        return list;
     }
 }

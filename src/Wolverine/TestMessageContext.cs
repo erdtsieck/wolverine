@@ -214,6 +214,11 @@ public class TestMessageContext : IMessageContext
         throw new NotSupportedException("This function is not yet supported within the TestMessageContext");
     }
 
+    public IReadOnlyList<Envelope> PreviewSubscriptions(object message, DeliveryOptions options)
+    {
+        throw new NotSupportedException("This function is not yet supported within the TestMessageContext");
+    }
+
     ValueTask IMessageBus.SendAsync<T>(T message, DeliveryOptions? options)
     {
         var envelope = new Envelope { Message = message };
@@ -251,6 +256,11 @@ public class TestMessageContext : IMessageContext
         _responses.Add(response);
 
         return ValueTask.CompletedTask;
+    }
+
+    public Task ReScheduleCurrentAsync(DateTimeOffset rescheduledAt)
+    {
+        throw new NotImplementedException();
     }
 
     /// <summary>

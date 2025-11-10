@@ -1,20 +1,24 @@
 ﻿using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Reflection;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.CodeGeneration.Services;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
-using Wolverine.Codegen;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Middleware;
+using Wolverine.Persistence;
+using Wolverine.Persistence.Sagas;
+using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports.Local;
 using Wolverine.Transports.Stub;
@@ -83,6 +87,9 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     public HandlerChain(WolverineOptions options, IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : this(
         grouping.Key, parent)
     {
+        // ReSharper disable once VirtualMemberCallInConstructor
+        validateAgainstInvalidSagaMethods(grouping);
+
         Handlers.AddRange(grouping);
 
         var i = 0;
@@ -109,6 +116,16 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         }
     }
 
+    protected virtual void validateAgainstInvalidSagaMethods(IGrouping<Type, HandlerCall> grouping)
+    {
+        var illegalSagas = grouping.Where(x => x.HandlerType.CanBeCastTo<Saga>() && x.Method.IsStatic).ToArray();
+        if (illegalSagas.Any())
+        {
+            throw new InvalidSagaException(
+                $"Illegal static method {illegalSagas.Select(x => x.ToString()).Join(", ")}. Handler methods for existing saga data mush be instance methods");
+        }
+    }
+
     public IReadOnlyList<HandlerChain> ByEndpoint => _byEndpoint;
 
     internal virtual bool HasDefaultNonStickyHandlers() => Handlers.Any();
@@ -118,18 +135,6 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     /// </summary>
     [IgnoreDescription]
     public IReadOnlyList<Endpoint> Endpoints => _endpoints;
-
-    /// <summary>
-    ///     At what level should Wolverine log messages about messages succeeding? The default
-    ///     is Information
-    /// </summary>
-    [Obsolete("The naming is misleading, please use SuccessLogLevel")]
-    [IgnoreDescription]
-    public LogLevel ExecutionLogLevel
-    {
-        get => SuccessLogLevel;
-        set => SuccessLogLevel = value;
-    }
 
     /// <summary>
     ///     At what level should Wolverine log messages of this type about messages succeeding? The default
@@ -148,6 +153,8 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     ///     this message type. Default is true
     /// </summary>
     public bool TelemetryEnabled { get; set; } = true;
+
+    public override MiddlewareScoping Scoping => MiddlewareScoping.MessageHandlers;
 
     public override void ApplyParameterMatching(MethodCall call)
     {
@@ -225,6 +232,20 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
 
         handleMethod.DerivedVariables.Add(envelopeVariable);
+    }
+
+    internal virtual bool TryInferMessageIdentity(out PropertyInfo? property)
+    {
+        var atts = Handlers.SelectMany(x => x.HandlerType.GetCustomAttributes().Concat(x.Method.GetCustomAttributes()))
+            .OfType<IMayInferMessageIdentity>().ToArray();
+
+        foreach (var att in atts)
+        {
+            if (att.TryInferMessageIdentity(this, out property)) return true;
+        }
+        
+        property = default;
+        return false;
     }
 
     Task<bool> ICodeFile.AttachTypes(GenerationRules rules, Assembly assembly, IServiceProvider? services,
@@ -363,6 +384,25 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         var frame = typeof(EntityIsNotNullGuardFrame<>).CloseAndBuildAs<MethodCall>(variable, variable.VariableType);
 
         return [frame, new HandlerContinuationFrame(frame)];
+    }
+
+    public override Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement)
+    {
+        // TODO -- want to use WolverineOptions here for a default
+        switch (requirement.OnMissing)
+        {
+            case OnMissing.Simple404:
+            case OnMissing.ProblemDetailsWith400:
+            case OnMissing.ProblemDetailsWith404:
+                var frame = typeof(EntityIsNotNullGuardFrame<>).CloseAndBuildAs<MethodCall>(data, data.VariableType);
+                if (frame is IEntityIsNotNullGuard guard) guard.Requirement = requirement;
+                
+                return [frame, new HandlerContinuationFrame(frame)];
+                
+            default:
+                var message = requirement.MissingMessage ?? $"Unknown {data.VariableType.NameInCode()} with identity {{Id}}";
+                return [new ThrowRequiredDataMissingExceptionFrame(data, identity, message)];
+        }
     }
 
     public IEnumerable<Type> PublishedTypes()
@@ -543,13 +583,20 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     }
 }
 
-internal class EntityIsNotNullGuardFrame<T> : MethodCall
+internal interface IEntityIsNotNullGuard
+{
+    IDataRequirement? Requirement { get; set; }
+}
+
+internal class EntityIsNotNullGuardFrame<T> : MethodCall, IEntityIsNotNullGuard
 {
     public EntityIsNotNullGuardFrame(Variable variable) : base(typeof(EntityIsNotNullGuard<T>), "Assert")
     {
         Arguments[0] = variable;
         Arguments[2] = Constant.For(variable.Usage);
     }
+    
+    public IDataRequirement? Requirement { get; set; }
 }
 
 public static class EntityIsNotNullGuard<T>
