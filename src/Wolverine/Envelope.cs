@@ -425,6 +425,10 @@ public partial class Envelope : IHasTenantId
     /// <returns></returns>
     public bool IsScheduledForLater(DateTimeOffset utcNow)
     {
+        // Doesn't matter, if it's been scheduled and persisted, it has 
+        // to be scheduled
+        if (Status == EnvelopeStatus.Scheduled) return true;
+        
         return ScheduledTime.HasValue && ScheduledTime.Value > utcNow;
     }
 
@@ -453,4 +457,24 @@ public partial class Envelope : IHasTenantId
     /// persisted this envelope for later tracking
     /// </summary>
     internal IMessageStore? Store { get; set; }
+
+    public static Envelope ForPersistedHandled(Envelope original, DateTimeOffset now, DurabilitySettings settings)
+    {
+        return new Envelope
+        {
+            Id = original.Id,
+            Data = [],
+            OwnerId = 0,
+            Status = EnvelopeStatus.Handled,
+            Destination = original.Destination,
+            MessageType = original.MessageType,
+            KeepUntil = now.Add(settings.KeepAfterMessageHandling)
+        };
+    }
+    
+    /// <summary>
+    /// Marks the time stamp for how long this envelope should be retained as
+    /// "Handled" in the inbox for idempotency protections
+    /// </summary>
+    public DateTimeOffset? KeepUntil { get; set; }
 }

@@ -24,6 +24,12 @@ public class catch_up_then_restart : IAsyncLifetime
             {
                 opts.Services.AddMarten(m =>
                 {
+                    m.Connection(Servers.PostgresConnectionString);
+
+                }).IntegrateWithWolverine(x => x.UseWolverineManagedEventSubscriptionDistribution = true);
+                
+                opts.Services.AddMarten(m =>
+                {
                     m.DisableNpgsqlLogging = true;
                     
                     m.Connection(Servers.PostgresConnectionString);
@@ -70,7 +76,11 @@ public class catch_up_then_restart : IAsyncLifetime
 
 
         var tracked = await _host.TrackActivity()
+            
+            // This new helper just resets the main Marten store
+            // Equivalent to calling IHost.ResetAllMartenDataAsync()
             .ResetAllMartenDataFirst()
+            
             .PauseThenCatchUpOnMartenDaemonActivity(CatchUpMode.AndResumeNormally)
             .InvokeMessageAndWaitAsync(new AppendLetters(id, ["AAAACCCCBDEEE", "ABCDECCC", "BBBA", "DDDAE"]));
 
