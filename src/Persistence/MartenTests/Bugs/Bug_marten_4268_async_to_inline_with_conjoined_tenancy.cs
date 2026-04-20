@@ -20,16 +20,17 @@ namespace MartenTests.Bugs;
 /// Root cause: mt_doc_envelope existed in the database as a multi-tenanted +
 /// hash-partitioned table (from a previous config where Envelope was registered
 /// with MultiTenantedWithPartitioning). After switching projections from Async to
-/// Inline and enabling EnableSideEffectsOnInlineProjections, Marten detects that
-/// the expected Envelope schema is now non-tenanted (single-tenant) and generates
-/// DDL to remove tenant_id. PostgreSQL rejects this because tenant_id is the
-/// partition key: "unique constraint on partitioned table must include all
-/// partitioning columns".
+/// Inline and enabling EnableSideEffectsOnInlineProjections, the explicit
+/// MultiTenantedWithPartitioning config for Envelope is removed. Marten falls back
+/// to its default (single-tenant) for Envelope and generates DDL to remove
+/// tenant_id. PostgreSQL rejects this because tenant_id is the partition key:
+/// "unique constraint on partitioned table must include all partitioning columns".
 ///
 /// Reproduction steps:
 /// 1. Phase 1: register Envelope as multi-tenanted + hash-partitioned, run with
 ///    Async projections → mt_doc_envelope created with (tenant_id, id) PK
-/// 2. Phase 2: remove the Envelope partitioning config, switch to Inline +
+/// 2. Phase 2: remove the explicit Envelope partitioning config (no explicit
+///    SingleTenanted() call — Marten defaults to single-tenant), switch to Inline +
 ///    EnableSideEffectsOnInlineProjections = true → DDL migration fails
 /// </summary>
 public class Bug_marten_4268_async_to_inline_with_conjoined_tenancy
@@ -97,12 +98,14 @@ public class Bug_marten_4268_async_to_inline_with_conjoined_tenancy
                     if (phase2)
                     {
                         // Phase 2: Inline + side effects enabled.
-                        // Envelope is registered as single-tenanted (default, no partitioning).
+                        // The explicit MultiTenantedWithPartitioning config for Envelope is gone —
+                        // no SingleTenanted() call either, just like in the real production switch.
+                        // Marten defaults to single-tenant for Envelope (Envelope implements
+                        // IHasTenantId but NOT Marten's ITenanted, so no automatic conjoined tenancy).
                         // This conflicts with the existing mt_doc_envelope table (tenanted + hash-partitioned)
                         // and triggers the failing DDL migration.
                         m.Events.EnableSideEffectsOnInlineProjections = true;
                         m.Projections.Add<OrderSummaryProjection>(ProjectionLifecycle.Inline);
-                        m.Schema.For<Envelope>().SingleTenanted(); // default: no tenant_id
                     }
                     else
                     {
@@ -170,9 +173,11 @@ public class Bug_marten_4268_envelope_schema_only
             await host.StopAsync();
         }
 
-        // Phase 2: Envelope as single-tenanted (no inline, no EnableSideEffectsOnInlineProjections)
-        // If this fails too, the bug is purely in Marten's DDL migration logic,
-        // not related to inline projections or EnableSideEffectsOnInlineProjections.
+        // Phase 2: Envelope with no explicit tenancy config at all (no inline, no EnableSideEffectsOnInlineProjections).
+        // Marten defaults to single-tenant for Envelope, conflicting with the existing
+        // hash-partitioned mt_doc_envelope table. This proves the bug is purely in
+        // Marten's DDL migration logic for hash-partitioned tables, unrelated to
+        // inline projections or EnableSideEffectsOnInlineProjections.
         using var host2 = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -181,7 +186,7 @@ public class Bug_marten_4268_envelope_schema_only
                     m.Connection(Servers.PostgresConnectionString);
                     m.DatabaseSchemaName = SchemaName;
                     m.DisableNpgsqlLogging = true;
-                    m.Schema.For<Envelope>().SingleTenanted();
+                    // Envelope not explicitly configured — Marten defaults to single-tenant
                 })
                 .IntegrateWithWolverine()
                 .UseLightweightSessions();
