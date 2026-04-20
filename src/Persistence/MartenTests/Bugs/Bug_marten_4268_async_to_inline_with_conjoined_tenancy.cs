@@ -109,11 +109,8 @@ public class Bug_marten_4268_async_to_inline_with_conjoined_tenancy
                     }
                     else
                     {
-                        // Phase 1: Async + Envelope explicitly multi-tenanted + hash-partitioned
-                        // (simulates the pre-existing production database state)
+                        // Phase 1: Async, no explicit Envelope config — just like the real production setup
                         m.Projections.Add<OrderSummaryProjection>(ProjectionLifecycle.Async);
-                        m.Schema.For<Envelope>()
-                            .MultiTenantedWithPartitioning(x => x.ByHash("h000", "h001", "h002", "h003"));
                     }
 
                     m.Schema.For<OrderSummary>()
