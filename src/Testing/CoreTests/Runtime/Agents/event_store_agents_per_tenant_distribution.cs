@@ -83,13 +83,17 @@ public class event_store_agents_per_tenant_distribution
     }
 
     [Fact]
-    public async Task keeps_a_single_agent_when_the_database_has_no_tenants_yet()
+    public async Task yields_no_agents_when_a_per_tenant_database_has_no_tenants_yet()
     {
+        // Under per-tenant event partitioning every event lives in a tenant partition, so an empty
+        // database has nothing to process. A store-global agent started for the empty database would
+        // keep running once the first tenants arrive, double-processing the same events next to the new
+        // per-tenant agents (both materialize the same per-tenant progression rows -> 23505 storms).
         var agents = AgentsFor(UsageWithOneAsyncShardOnADatabaseWith(), distributesPerTenant: true);
 
         var uris = await agents.SupportedAgentsAsync(CancellationToken.None);
 
-        uris.Count.ShouldBe(1, "a per-tenant store with no tenants provisioned yet keeps one store-global agent");
+        uris.ShouldBeEmpty();
     }
 
     [Fact]

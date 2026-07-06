@@ -103,11 +103,19 @@ public class EventStoreAgents : IAsyncDisposable
         // wolverine#3280: under sharded databases + per-tenant event partitioning, multiple tenants are
         // co-located in one shard database and each draws its own event sequence, so a single store-global
         // agent per (shard, database) cannot track them — fan out one agent per (shard, tenant) instead.
-        // For any other store (or a database with no tenants yet) keep the one store-global agent.
+        // For any other store keep the one store-global agent.
         void addAgentsForShard(DatabaseDescriptor database, DatabaseId id, ShardName shardName)
         {
-            if (_store.DistributesAgentsPerTenant && database.TenantIds.Count > 0)
+            if (_store.DistributesAgentsPerTenant)
             {
+                // Per-tenant stores get per-tenant agents ONLY — never a store-global agent. A database
+                // without tenants yields no agents at all: under per-tenant event partitioning every event
+                // lives in a tenant partition, so an empty database has nothing to process — and a
+                // store-global agent started for it would keep running once the first tenants arrive,
+                // double-processing the same events next to the new per-tenant agents (both materialize
+                // the same per-tenant progression rows → duplicate pk_mt_event_progression, 23505). The
+                // per-tenant agent appears via the next assignment re-evaluation instead.
+                //
                 // Tenant ids are matched case-insensitively elsewhere in this class (see
                 // TryResolveTenantDatabaseIdAsync), so dedupe the fan-out the same way, and skip blank ids —
                 // a malformed usage descriptor must not yield duplicate or invalid per-tenant agent URIs.
